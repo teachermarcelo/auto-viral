@@ -12,7 +12,8 @@
   "host_permissions": [
     "https://www.facebook.com/*",
     "https://facebook.com/*",
-    "https://nuyzvpkvawixidotuuio.supabase.co/*"
+    "https://nuyzvpkvawixidotuuio.supabase.co/*",
+    "https://teachermarcelo.github.io/*"
   ],
   "content_scripts": [
     {
@@ -22,6 +23,15 @@
       ],
       "js": [
         "content.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://teachermarcelo.github.io/auto-viral/*"
+      ],
+      "js": [
+        "platform-bridge.js"
       ],
       "run_at": "document_idle"
     }
