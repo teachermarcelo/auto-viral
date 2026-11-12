@@ -19,6 +19,11 @@ type Product = {
   currency: string;
   checkout_url: string | null;
   image_url: string | null;
+  target_audience: string | null;
+  benefits: string | null;
+  bonuses: string | null;
+  guarantee: string | null;
+  promo_price: number | null;
   status: 'draft' | 'active' | 'archived';
   created_at: string;
 };
@@ -31,11 +36,16 @@ type ProductForm = {
   currency: string;
   checkout_url: string;
   image_url: string;
+  target_audience: string;
+  benefits: string;
+  bonuses: string;
+  guarantee: string;
+  promo_price: string;
   status: Product['status'];
 };
 const blankProduct: ProductForm = {
   name: '', description: '', product_type: 'digital', niche: '',
-  price: '', currency: 'BRL', checkout_url: '', image_url: '', status: 'draft',
+  price: '', currency: 'BRL', checkout_url: '', image_url: '', target_audience: '', benefits: '', bonuses: '', guarantee: '', promo_price: '', status: 'draft',
 };
 const sections: { label: Section; icon: typeof LayoutDashboard; group: string }[] = [
   { label: 'Visão geral', icon: LayoutDashboard, group: 'WORKSPACE' },
@@ -81,6 +91,7 @@ function App() {
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [productForm, setProductForm] = useState<ProductForm>(blankProduct);
   const [savingProduct, setSavingProduct] = useState(false);
+  const [productImageFile, setProductImageFile] = useState<File | null>(null);
 
   async function loadOrCreateWorkspace(_userId: string) {
     if (!supabase) return;
@@ -138,7 +149,7 @@ function App() {
     setProductsLoading(true);
     setProductsError('');
     const { data, error } = await supabase.from('av_products')
-      .select('id,name,description,product_type,niche,price,currency,checkout_url,image_url,status,created_at')
+      .select('id,name,description,product_type,niche,price,currency,checkout_url,image_url,target_audience,benefits,bonuses,guarantee,promo_price,status,created_at')
       .eq('workspace_id', targetWorkspaceId).order('created_at', { ascending: false });
     if (error) setProductsError(`Não foi possível carregar os produtos: ${error.message}`);
     else setProducts((data ?? []) as Product[]);
@@ -148,6 +159,7 @@ function App() {
   function openNewProduct() {
     setEditingProductId(null);
     setProductForm(blankProduct);
+    setProductImageFile(null);
     setProductMessage('');
     setFormOpen(true);
   }
@@ -156,8 +168,9 @@ function App() {
     setProductForm({
       name: product.name, description: product.description ?? '', product_type: product.product_type,
       niche: product.niche ?? '', price: product.price == null ? '' : String(product.price),
-      currency: product.currency || 'BRL', checkout_url: product.checkout_url ?? '', image_url: product.image_url ?? '', status: product.status,
+      currency: product.currency || 'BRL', checkout_url: product.checkout_url ?? '', image_url: product.image_url ?? '', target_audience: product.target_audience ?? '', benefits: product.benefits ?? '', bonuses: product.bonuses ?? '', guarantee: product.guarantee ?? '', promo_price: product.promo_price == null ? '' : String(product.promo_price), status: product.status,
     });
+    setProductImageFile(null);
     setProductMessage('');
     setFormOpen(true);
   }
@@ -165,9 +178,13 @@ function App() {
     event.preventDefault();
     if (!supabase || !workspaceId) { setProductMessage('Workspace ainda não está disponível. Recarregue a página e tente novamente.'); return; }
     const parsedPrice = productForm.price.trim() === '' ? null : Number(productForm.price.replace(',', '.'));
+    const parsedPromoPrice = productForm.promo_price.trim() === '' ? null : Number(productForm.promo_price.replace(',', '.'));
     if (parsedPrice !== null && (!Number.isFinite(parsedPrice) || parsedPrice < 0)) {
       setProductMessage('Informe um preço válido, maior ou igual a zero.'); return;
     }
+    if (parsedPromoPrice !== null && (!Number.isFinite(parsedPromoPrice) || parsedPromoPrice < 0)) { setProductMessage('Informe um preço promocional válido.'); return; }
+    if (parsedPrice !== null && parsedPromoPrice !== null && parsedPromoPrice > parsedPrice) { setProductMessage('O preço promocional não pode ser maior que o preço original.'); return; }
+    if (productImageFile && (!['image/jpeg','image/png','image/webp'].includes(productImageFile.type) || productImageFile.size > 5 * 1024 * 1024)) { setProductMessage('Envie uma imagem JPG, PNG ou WebP de até 5 MB.'); return; }
     if (productForm.checkout_url.trim()) {
       try {
         const url = new URL(productForm.checkout_url);
@@ -176,11 +193,19 @@ function App() {
     }
     setSavingProduct(true);
     setProductMessage('');
+    let uploadedImageUrl = productForm.image_url.trim() || null;
+    if (productImageFile) {
+      const extension = productImageFile.name.split('.').pop()?.toLowerCase() || 'jpg';
+      const objectPath = `${workspaceId}/${crypto.randomUUID()}.${extension}`;
+      const { error: uploadError } = await supabase.storage.from('av-product-media').upload(objectPath, productImageFile, { contentType: productImageFile.type, cacheControl: '3600', upsert: false });
+      if (uploadError) { setSavingProduct(false); setProductMessage(`Falha no upload da imagem: ${uploadError.message}`); return; }
+      uploadedImageUrl = supabase.storage.from('av-product-media').getPublicUrl(objectPath).data.publicUrl;
+    }
     const payload = {
       name: productForm.name.trim(), description: productForm.description.trim() || null,
       product_type: productForm.product_type, niche: productForm.niche.trim() || null,
       price: parsedPrice, currency: productForm.currency.toUpperCase(),
-      checkout_url: productForm.checkout_url.trim() || null, image_url: productForm.image_url.trim() || null, status: productForm.status,
+      checkout_url: productForm.checkout_url.trim() || null, image_url: uploadedImageUrl, target_audience: productForm.target_audience.trim() || null, benefits: productForm.benefits.trim() || null, bonuses: productForm.bonuses.trim() || null, guarantee: productForm.guarantee.trim() || null, promo_price: parsedPromoPrice, status: productForm.status,
     };
     const query = editingProductId
       ? supabase.from('av_products').update(payload).eq('id', editingProductId).eq('workspace_id', workspaceId)
@@ -189,6 +214,7 @@ function App() {
     setSavingProduct(false);
     if (error) { setProductMessage(`Erro ao salvar produto: ${error.message}`); return; }
     setFormOpen(false);
+    setProductImageFile(null);
     setProductMessage(editingProductId ? 'Produto atualizado.' : 'Produto cadastrado.');
     await loadProducts();
   }
@@ -319,9 +345,15 @@ function ProductsPage(props: {
         <label>Nicho<input maxLength={120} value={form.niche} onChange={e => onChange({...form,niche:e.target.value})} placeholder="Ex.: Educação, saúde, culinária"/></label>
         <label>Descrição<textarea rows={3} maxLength={3000} value={form.description} onChange={e => onChange({...form,description:e.target.value})} placeholder="Descreva a oferta e seus diferenciais"/></label>
         <div className="form-two"><label>Preço<input inputMode="decimal" value={form.price} onChange={e => onChange({...form,price:e.target.value})} placeholder="0,00"/></label><label>Moeda<select value={form.currency} onChange={e => onChange({...form,currency:e.target.value})}><option value="BRL">BRL — Real</option><option value="USD">USD — Dólar</option><option value="EUR">EUR — Euro</option></select></label></div>
+        <label>Preço promocional<input inputMode="decimal" value={form.promo_price} onChange={e => onChange({...form,promo_price:e.target.value})} placeholder="Opcional — 0,00"/></label>
+        <label>Público-alvo<textarea rows={2} maxLength={1200} value={form.target_audience} onChange={e => onChange({...form,target_audience:e.target.value})} placeholder="Para quem é este produto?"/></label>
+        <label>Principais benefícios<textarea rows={3} maxLength={2000} value={form.benefits} onChange={e => onChange({...form,benefits:e.target.value})} placeholder="Liste os resultados e benefícios reais da oferta"/></label>
+        <label>Bônus incluídos<textarea rows={2} maxLength={1200} value={form.bonuses} onChange={e => onChange({...form,bonuses:e.target.value})} placeholder="Descreva os bônus, se houver"/></label>
+        <label>Garantia e condições<textarea rows={2} maxLength={1000} value={form.guarantee} onChange={e => onChange({...form,guarantee:e.target.value})} placeholder="Informe a garantia e condições verdadeiras da oferta"/></label>
         <label>Link de checkout<input type="url" value={form.checkout_url} onChange={e => onChange({...form,checkout_url:e.target.value})} placeholder="https://…"/></label>
-        <label>Imagem do produto (URL)<input type="url" value={form.image_url} onChange={e => onChange({...form,image_url:e.target.value})} placeholder="https://.../imagem-do-produto.jpg"/><small>Adicione o endereço público da imagem. A prévia aparece no catálogo.</small></label>
-        {form.image_url.trim() && <div className="product-image-preview"><img src={form.image_url} alt="Prévia da imagem do produto" onError={e => { e.currentTarget.style.display = 'none'; }} /></div>}
+        <label>Imagem do produto<input type="file" accept="image/png,image/jpeg,image/webp" onChange={e => setProductImageFile(e.target.files?.[0] ?? null)}/><small>Upload JPG, PNG ou WebP · máximo 5 MB. A imagem será armazenada no Supabase Storage.</small></label>
+        {productImageFile && <div className="product-image-preview"><img src={URL.createObjectURL(productImageFile)} alt="Prévia da imagem selecionada"/></div>}
+        {!productImageFile && form.image_url && <div className="product-image-preview"><img src={form.image_url} alt="Imagem atual do produto"/></div>}
         {message && <p className="product-feedback error">{message}</p>}
         <div className="modal-actions"><button type="button" className="subtle-button" onClick={onClose}>Cancelar</button><button className="primary-button" disabled={saving}>{saving ? 'Salvando…' : 'Salvar produto'}</button></div>
       </form></section></div>}
