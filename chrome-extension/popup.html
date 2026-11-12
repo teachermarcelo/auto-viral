@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>AutoViral AI</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="header">
+      <div class="mark">✦</div>
+      <div><strong>AutoViral <span>AI</span></strong><small>CAPTURA DE OPORTUNIDADES</small></div>
+    </header>
+    <p class="hint">Capture somente o conteúdo que você escolher na aba atual.</p>
+    <button id="capture" class="primary">＋ Capturar esta página</button>
+    <p id="status" class="status" role="status">Pronto para capturar.</p>
+    <section id="editor" class="editor hidden">
+      <label>Sinal identificado
+        <select id="signal">
+          <option>Dor explícita</option>
+          <option>Pergunta recorrente</option>
+          <option>Pedido de recomendação</option>
+          <option>Intenção de compra</option>
+          <option>Comparação de soluções</option>
+          <option>Outro</option>
+        </select>
+      </label>
+      <label>Observação
+        <textarea id="notes" rows="2" placeholder="O que chamou sua atenção nesta página?"></textarea>
+      </label>
+      <button id="save" class="primary">Salvar captura no Chrome</button>
+    </section>
+    <section class="saved">
+      <div class="section-title"><strong>Capturas salvas</strong><span id="count">0</span></div>
+      <div id="items" class="items"><p class="empty">Nenhuma captura salva.</p></div>
+      <div class="actions">
+        <button id="export" class="secondary">Exportar JSON</button>
+        <button id="open-app" class="secondary">Abrir AutoViral</button>
+      </div>
+    </section>
+    <footer>Captura manual · Sem disparos ou coleta em segundo plano</footer>
+  </main>
+  <script src="popup.js"></script>
+</body>
+</html>
