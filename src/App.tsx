@@ -299,7 +299,7 @@ function App() {
           {active === 'Produtos' ? (
             <ProductsPage
               products={products} loading={productsLoading} error={productsError} message={productMessage}
-              formOpen={formOpen} form={productForm} saving={savingProduct}
+              formOpen={formOpen} form={productForm} saving={savingProduct} imageFile={productImageFile} onImageFileChange={setProductImageFile}
               onNew={openNewProduct} onEdit={openEditProduct} onDelete={deleteProduct}
               onChange={setProductForm} onSave={saveProduct} onClose={() => setFormOpen(false)}
               onRefresh={() => void loadProducts()}
@@ -325,7 +325,7 @@ function ProductsPage(props: {
   onDelete: (product: Product) => void; onChange: (form: ProductForm) => void;
   onSave: (event: React.FormEvent<HTMLFormElement>) => void; onClose: () => void; onRefresh: () => void;
 }) {
-  const { products, loading, error, message, formOpen, form, saving, onNew, onEdit, onDelete, onChange, onSave, onClose, onRefresh } = props;
+  const { products, loading, error, message, formOpen, form, saving, imageFile, onImageFileChange, onNew, onEdit, onDelete, onChange, onSave, onClose, onRefresh } = props;
   const currency = (value: number | null, code: string) => value == null ? 'Sem preço' : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: code }).format(value);
   return <>
     <section className="welcome-row"><div><div className="eyebrow"><span className="live-dot"/> PRODUCT CENTER</div><h1>Seus produtos, em um só lugar.</h1><p>Cadastre ofertas, organize nichos e prepare seus produtos para campanhas orgânicas.</p></div><button className="primary-button" onClick={onNew}><Plus size={17}/> Novo produto</button></section>
@@ -351,9 +351,9 @@ function ProductsPage(props: {
         <label>Bônus incluídos<textarea rows={2} maxLength={1200} value={form.bonuses} onChange={e => onChange({...form,bonuses:e.target.value})} placeholder="Descreva os bônus, se houver"/></label>
         <label>Garantia e condições<textarea rows={2} maxLength={1000} value={form.guarantee} onChange={e => onChange({...form,guarantee:e.target.value})} placeholder="Informe a garantia e condições verdadeiras da oferta"/></label>
         <label>Link de checkout<input type="url" value={form.checkout_url} onChange={e => onChange({...form,checkout_url:e.target.value})} placeholder="https://…"/></label>
-        <label>Imagem do produto<input type="file" accept="image/png,image/jpeg,image/webp" onChange={e => setProductImageFile(e.target.files?.[0] ?? null)}/><small>Upload JPG, PNG ou WebP · máximo 5 MB. A imagem será armazenada no Supabase Storage.</small></label>
-        {productImageFile && <div className="product-image-preview"><img src={URL.createObjectURL(productImageFile)} alt="Prévia da imagem selecionada"/></div>}
-        {!productImageFile && form.image_url && <div className="product-image-preview"><img src={form.image_url} alt="Imagem atual do produto"/></div>}
+        <label>Imagem do produto<input type="file" accept="image/png,image/jpeg,image/webp" onChange={e => onImageFileChange(e.target.files?.[0] ?? null)}/><small>Upload JPG, PNG ou WebP · máximo 5 MB. A imagem será armazenada no Supabase Storage.</small></label>
+        {imageFile && <div className="product-image-preview"><img src={URL.createObjectURL(imageFile)} alt="Prévia da imagem selecionada"/></div>}
+        {!imageFile && form.image_url && <div className="product-image-preview"><img src={form.image_url} alt="Imagem atual do produto"/></div>}
         {message && <p className="product-feedback error">{message}</p>}
         <div className="modal-actions"><button type="button" className="subtle-button" onClick={onClose}>Cancelar</button><button className="primary-button" disabled={saving}>{saving ? 'Salvando…' : 'Salvar produto'}</button></div>
       </form></section></div>}
