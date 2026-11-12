@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Copy, ExternalLink, Plus, RefreshCw, Users, Megaphone, CalendarClock, Upload, Trash2 } from 'lucide-react';
+import { Copy, ExternalLink, Plus, RefreshCw, Users, Megaphone, CalendarClock, Upload, Trash2, FileText } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import './operational-pages.css';
 
