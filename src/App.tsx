@@ -1,0 +1,324 @@
+import { useEffect, useMemo, useState } from 'react';
+import {
+  Activity, ArrowUpRight, BarChart3, Bell, Bot, BrainCircuit,
+  ChevronDown, CircleHelp, Command, Compass, ContactRound, FileImage, Globe2,
+  LayoutDashboard, Link2, LogOut, Menu, Package, Plus,
+  Search, Settings2, ShieldCheck, Sparkles, Target, Users, WandSparkles, X, Pencil, Trash2, RefreshCw,
+} from 'lucide-react';
+import { isSupabaseConfigured, supabase } from './lib/supabase';
+
+type Section = 'Visão geral' | 'Produtos' | 'Inteligência de mercado' | 'Radar de audiência' | 'Central de tráfego' | 'Estúdio criativo' | 'CRM e vendas' | 'Funis e páginas' | 'Automações' | 'Analytics' | 'Integrações';
+type Product = {
+  id: string;
+  name: string;
+  description: string | null;
+  product_type: 'digital' | 'physical' | 'service' | 'affiliate';
+  niche: string | null;
+  price: number | null;
+  currency: string;
+  checkout_url: string | null;
+  status: 'draft' | 'active' | 'archived';
+  created_at: string;
+};
+type ProductForm = {
+  name: string;
+  description: string;
+  product_type: Product['product_type'];
+  niche: string;
+  price: string;
+  currency: string;
+  checkout_url: string;
+  status: Product['status'];
+};
+const blankProduct: ProductForm = {
+  name: '', description: '', product_type: 'digital', niche: '',
+  price: '', currency: 'BRL', checkout_url: '', status: 'draft',
+};
+const sections: { label: Section; icon: typeof LayoutDashboard; group: string }[] = [
+  { label: 'Visão geral', icon: LayoutDashboard, group: 'WORKSPACE' },
+  { label: 'Produtos', icon: Package, group: 'ESTRATÉGIA' },
+  { label: 'Inteligência de mercado', icon: BrainCircuit, group: 'ESTRATÉGIA' },
+  { label: 'Radar de audiência', icon: Compass, group: 'ESTRATÉGIA' },
+  { label: 'Central de tráfego', icon: Globe2, group: 'CRESCIMENTO' },
+  { label: 'Estúdio criativo', icon: WandSparkles, group: 'CRESCIMENTO' },
+  { label: 'CRM e vendas', icon: ContactRound, group: 'CRESCIMENTO' },
+  { label: 'Funis e páginas', icon: Link2, group: 'CRESCIMENTO' },
+  { label: 'Automações', icon: Bot, group: 'INTELIGÊNCIA' },
+  { label: 'Analytics', icon: BarChart3, group: 'INTELIGÊNCIA' },
+  { label: 'Integrações', icon: Settings2, group: 'SISTEMA' },
+];
+const metrics = [
+  { label: 'Visitantes orgânicos', value: '—', change: 'Aguardando conexão', icon: Users, tone: 'cyan' },
+  { label: 'Leads capturados', value: '—', change: 'Aguardando conexão', icon: Target, tone: 'purple' },
+  { label: 'Cliques rastreados', value: '—', change: 'Aguardando conexão', icon: Activity, tone: 'green' },
+  { label: 'Vendas atribuídas', value: '—', change: 'Aguardando conexão', icon: BarChart3, tone: 'orange' },
+];
+
+function App() {
+  const [active, setActive] = useState<Section>('Visão geral');
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [workspaceName, setWorkspaceName] = useState('Meu workspace');
+  const [authReady, setAuthReady] = useState(!isSupabaseConfigured);
+  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [authMessage, setAuthMessage] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [workspaceId, setWorkspaceId] = useState<string | null>(null);
+  const [workspaceLoading, setWorkspaceLoading] = useState(false);
+  const [workspaceError, setWorkspaceError] = useState('');
+  const [products, setProducts] = useState<Product[]>([]);
+  const [productsLoading, setProductsLoading] = useState(false);
+  const [productsError, setProductsError] = useState('');
+  const [productMessage, setProductMessage] = useState('');
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [productForm, setProductForm] = useState<ProductForm>(blankProduct);
+  const [savingProduct, setSavingProduct] = useState(false);
+
+  async function loadOrCreateWorkspace(_userId: string) {
+    if (!supabase) return;
+    setWorkspaceError('');
+    setWorkspaceLoading(true);
+    try {
+      const { data: memberships, error: membershipError } = await supabase
+        .from('av_workspace_members')
+        .select('workspace_id, av_workspaces(id,name)')
+        .order('created_at', { ascending: true })
+        .limit(1);
+      if (membershipError) throw membershipError;
+
+      const membership = memberships?.[0] as
+        | { workspace_id: string; av_workspaces: { id: string; name: string }[] | null }
+        | undefined;
+
+      if (membership?.workspace_id) {
+        const workspace = membership.av_workspaces?.[0] ?? null;
+        if (!workspace) {
+          const { data, error } = await supabase
+            .from('av_workspaces').select('id,name').eq('id', membership.workspace_id).single();
+          if (error) throw error;
+          setWorkspaceName(data.name);
+          setWorkspaceId(data.id);
+        } else {
+          setWorkspaceName(workspace.name);
+          setWorkspaceId(workspace.id);
+        }
+        return;
+      }
+
+      const { data: newWorkspaceId, error: createError } = await supabase
+        .rpc('av_create_workspace', { p_name: 'Meu workspace' });
+      if (createError) throw createError;
+      if (!newWorkspaceId) throw new Error('A criação do workspace não retornou um identificador.');
+
+      const { data: createdWorkspace, error: fetchError } = await supabase
+        .from('av_workspaces').select('id,name').eq('id', newWorkspaceId).single();
+      if (fetchError) throw fetchError;
+      setWorkspaceName(createdWorkspace.name);
+      setWorkspaceId(createdWorkspace.id);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erro desconhecido';
+      console.error('Falha ao preparar workspace:', message);
+      setWorkspaceError(`Não foi possível preparar seu workspace: ${message}`);
+      setWorkspaceId(null);
+    } finally {
+      setWorkspaceLoading(false);
+    }
+  }
+
+  async function loadProducts(targetWorkspaceId = workspaceId) {
+    if (!supabase || !targetWorkspaceId) return;
+    setProductsLoading(true);
+    setProductsError('');
+    const { data, error } = await supabase.from('av_products')
+      .select('id,name,description,product_type,niche,price,currency,checkout_url,status,created_at')
+      .eq('workspace_id', targetWorkspaceId).order('created_at', { ascending: false });
+    if (error) setProductsError(`Não foi possível carregar os produtos: ${error.message}`);
+    else setProducts((data ?? []) as Product[]);
+    setProductsLoading(false);
+  }
+
+  function openNewProduct() {
+    setEditingProductId(null);
+    setProductForm(blankProduct);
+    setProductMessage('');
+    setFormOpen(true);
+  }
+  function openEditProduct(product: Product) {
+    setEditingProductId(product.id);
+    setProductForm({
+      name: product.name, description: product.description ?? '', product_type: product.product_type,
+      niche: product.niche ?? '', price: product.price == null ? '' : String(product.price),
+      currency: product.currency || 'BRL', checkout_url: product.checkout_url ?? '', status: product.status,
+    });
+    setProductMessage('');
+    setFormOpen(true);
+  }
+  async function saveProduct(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!supabase || !workspaceId) { setProductMessage('Workspace ainda não está disponível. Recarregue a página e tente novamente.'); return; }
+    const parsedPrice = productForm.price.trim() === '' ? null : Number(productForm.price.replace(',', '.'));
+    if (parsedPrice !== null && (!Number.isFinite(parsedPrice) || parsedPrice < 0)) {
+      setProductMessage('Informe um preço válido, maior ou igual a zero.'); return;
+    }
+    if (productForm.checkout_url.trim()) {
+      try {
+        const url = new URL(productForm.checkout_url);
+        if (!['http:', 'https:'].includes(url.protocol)) throw new Error('invalid protocol');
+      } catch { setProductMessage('Informe um endereço de checkout válido, começando com https://.'); return; }
+    }
+    setSavingProduct(true);
+    setProductMessage('');
+    const payload = {
+      name: productForm.name.trim(), description: productForm.description.trim() || null,
+      product_type: productForm.product_type, niche: productForm.niche.trim() || null,
+      price: parsedPrice, currency: productForm.currency.toUpperCase(),
+      checkout_url: productForm.checkout_url.trim() || null, status: productForm.status,
+    };
+    const query = editingProductId
+      ? supabase.from('av_products').update(payload).eq('id', editingProductId).eq('workspace_id', workspaceId)
+      : supabase.from('av_products').insert({ ...payload, workspace_id: workspaceId });
+    const { error } = await query;
+    setSavingProduct(false);
+    if (error) { setProductMessage(`Erro ao salvar produto: ${error.message}`); return; }
+    setFormOpen(false);
+    setProductMessage(editingProductId ? 'Produto atualizado.' : 'Produto cadastrado.');
+    await loadProducts();
+  }
+  async function deleteProduct(product: Product) {
+    if (!supabase || !workspaceId || !window.confirm(`Excluir "${product.name}"? Esta ação não pode ser desfeita.`)) return;
+    const { error } = await supabase.from('av_products').delete().eq('id', product.id).eq('workspace_id', workspaceId);
+    if (error) setProductsError(`Não foi possível excluir: ${error.message}`);
+    else { setProductMessage('Produto excluído.'); await loadProducts(); }
+  }
+
+  useEffect(() => {
+    if (!supabase) return;
+    supabase.auth.getSession().then(({ data }) => {
+      const session = data.session;
+      setUserEmail(session?.user.email ?? null);
+      if (session?.user.id) void loadOrCreateWorkspace(session.user.id);
+      setAuthReady(true);
+    });
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUserEmail(session?.user.email ?? null);
+      if (session?.user.id) window.setTimeout(() => void loadOrCreateWorkspace(session.user.id), 0);
+      else { setWorkspaceName('Meu workspace'); setWorkspaceId(null); setProducts([]); }
+    });
+    return () => data.subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => { if (active === 'Produtos' && workspaceId) void loadProducts(workspaceId); }, [active, workspaceId]);
+
+  const grouped = useMemo(() => sections.reduce<Record<string, typeof sections>>((acc, item) => {
+    (acc[item.group] ??= []).push(item); return acc;
+  }, {}), []);
+
+  async function authenticate(event: React.FormEvent) {
+    event.preventDefault();
+    if (!supabase) return;
+    setLoading(true); setAuthMessage('');
+    const result = authMode === 'login'
+      ? await supabase.auth.signInWithPassword({ email, password })
+      : await supabase.auth.signUp({ email, password });
+    setLoading(false);
+    if (result.error) setAuthMessage(result.error.message);
+    else if (authMode === 'signup') setAuthMessage('Conta criada. Verifique seu e-mail para confirmar o acesso.');
+  }
+  async function signOut() { await supabase?.auth.signOut(); setUserEmail(null); }
+
+  if (!authReady) return <div className="loading-screen"><div className="brand-mark"><Sparkles /></div><span>Preparando seu workspace…</span></div>;
+  if (isSupabaseConfigured && !userEmail) return (
+    <main className="auth-screen">
+      <div className="auth-panel">
+        <Brand />
+        <div className="auth-copy"><span className="eyebrow">SEU CENTRO DE CRESCIMENTO</span><h1>Transforme estratégia em <em>crescimento orgânico.</em></h1><p>Acesse seu workspace para planejar, criar, distribuir e acompanhar sua operação.</p></div>
+        <form onSubmit={authenticate} className="auth-form">
+          <h2>{authMode === 'login' ? 'Entrar na plataforma' : 'Criar sua conta'}</h2>
+          <label>E-mail<input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="voce@empresa.com" /></label>
+          <label>Senha<input type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} placeholder="Mínimo de 8 caracteres" /></label>
+          {authMessage && <p className="auth-message">{authMessage}</p>}
+          <button className="primary-button full" disabled={loading}>{loading ? 'Aguarde…' : authMode === 'login' ? 'Entrar' : 'Criar conta'}</button>
+          <button type="button" className="text-button" onClick={() => { setAuthMode(authMode === 'login' ? 'signup' : 'login'); setAuthMessage(''); }}>{authMode === 'login' ? 'Ainda não tem conta? Criar acesso' : 'Já tem uma conta? Entrar'}</button>
+        </form>
+        <small className="auth-foot"><ShieldCheck size={14} /> Acesso protegido por autenticação Supabase</small>
+      </div>
+      <div className="auth-art"><div className="orbit orbit-one" /><div className="orbit orbit-two" /><div className="art-core"><Sparkles size={42} /></div><div className="art-label label-one"><Activity size={16} /> Tráfego orgânico</div><div className="art-label label-two"><BrainCircuit size={16} /> Inteligência artificial</div><div className="art-label label-three"><Target size={16} /> Conversão</div></div>
+    </main>
+  );
+
+  return (
+    <div className="app-shell">
+      {workspaceError && <div role="alert" className="product-feedback error">{workspaceError} Atualize a página ou verifique a configuração do banco de dados.</div>}
+      {workspaceLoading && <div role="status" className="product-feedback">Preparando seu workspace…</div>}
+      {mobileOpen && <button className="mobile-scrim" aria-label="Fechar menu" onClick={() => setMobileOpen(false)} />}
+      <aside className={`sidebar ${mobileOpen ? 'open' : ''}`}>
+        <div className="sidebar-top"><Brand /><button className="icon-button mobile-close" onClick={() => setMobileOpen(false)}><X /></button></div>
+        <button className="workspace-switch"><span className="workspace-avatar">AV</span><span><strong>{workspaceName}</strong><small>Plano inicial</small></span><ChevronDown size={16} /></button>
+        <nav>
+          {Object.entries(grouped).map(([group, items]) => <div className="nav-group" key={group}><span className="nav-label">{group}</span>{items.map(item => { const Icon = item.icon; return <button key={item.label} className={`nav-item ${active === item.label ? 'active' : ''}`} onClick={() => { setActive(item.label); setMobileOpen(false); }}><Icon size={18} /><span>{item.label}</span>{item.label === 'Automações' && <span className="nav-dot" />}</button>; })}</div>)}
+        </nav>
+        <div className="sidebar-bottom"><div className="help-card"><div className="help-icon"><CircleHelp size={18} /></div><strong>Precisa de ajuda?</strong><span>Explore os recursos da plataforma.</span><button onClick={() => setActive('Integrações')}>Central de ajuda <ArrowUpRight size={14} /></button></div><div className="profile-row"><div className="profile-avatar">M</div><div className="profile-info"><strong>{userEmail ? userEmail.split('@')[0] : 'Administrador'}</strong><small>{userEmail ?? 'Workspace proprietário'}</small></div><button className="icon-button" title="Sair" onClick={signOut}><LogOut size={16} /></button></div></div>
+      </aside>
+      <main className="main-area">
+        <header className="topbar"><div className="topbar-left"><button className="icon-button menu-toggle" onClick={() => setMobileOpen(true)}><Menu /></button><div className="breadcrumb">AutoViral AI <span>/</span> <strong>{active}</strong></div></div><div className="topbar-actions"><div className="search-box"><Search size={16} /><input placeholder="Buscar recursos..." /><kbd>⌘ K</kbd></div><button className="icon-button notification-button"><Bell size={18} /><i /></button><div className="top-avatar">M</div></div></header>
+        <div className="page-content">
+          {active === 'Produtos' ? (
+            <ProductsPage
+              products={products} loading={productsLoading} error={productsError} message={productMessage}
+              formOpen={formOpen} form={productForm} saving={savingProduct}
+              onNew={openNewProduct} onEdit={openEditProduct} onDelete={deleteProduct}
+              onChange={setProductForm} onSave={saveProduct} onClose={() => setFormOpen(false)}
+              onRefresh={() => void loadProducts()}
+            />
+          ) : <>
+            <section className="welcome-row"><div><div className="eyebrow"><span className="live-dot" /> WORKSPACE EM CONFIGURAÇÃO</div><h1>{active === 'Visão geral' ? 'Seu crescimento começa aqui.' : active}</h1><p>{active === 'Visão geral' ? 'Uma visão unificada da sua operação de tráfego, audiência e vendas.' : 'Organize sua operação e prepare o próximo passo do crescimento orgânico.'}</p></div><button className="primary-button" onClick={() => setActive('Produtos')}><Plus size={17} /> Novo projeto</button></section>
+            <section className="setup-banner"><div className="banner-icon"><Sparkles size={21} /></div><div className="banner-copy"><strong>Bem-vindo ao AutoViral AI</strong><span>Seu ambiente visual está pronto. Conecte as fontes de dados para ativar métricas reais e recursos operacionais.</span></div><span className="setup-status">CONFIGURAÇÃO INICIAL</span></section>
+            <section className="metric-grid">{metrics.map((m) => { const Icon = m.icon; return <article className="metric-card" key={m.label}><div className="metric-head"><span>{m.label}</span><span className={`metric-icon ${m.tone}`}><Icon size={18} /></span></div><strong className="metric-value">{m.value}</strong><div className="metric-foot"><span className="muted-dot" />{m.change}</div></article>; })}</section>
+            <div className="content-grid"><section className="panel performance-panel"><div className="panel-heading"><div><span className="panel-kicker">VISÃO DA OPERAÇÃO</span><h2>Desempenho dos canais</h2></div><button className="subtle-button">Últimos 30 dias <ChevronDown size={15} /></button></div><div className="chart-placeholder"><div className="chart-lines"><i /><i /><i /><i /></div><div className="chart-empty"><div className="chart-empty-icon"><BarChart3 size={23} /></div><strong>Seus dados aparecerão aqui</strong><span>Conecte canais e rastreamento para visualizar o desempenho.</span></div><div className="chart-x"><span>01</span><span>07</span><span>14</span><span>21</span><span>30</span></div></div></section>
+              <section className="panel channels-panel"><div className="panel-heading"><div><span className="panel-kicker">ECOSSISTEMA</span><h2>Canais conectados</h2></div><button className="icon-button"><Plus size={17} /></button></div><div className="channel-list">{[{name:'Instagram',desc:'Conteúdo e comunidade',letter:'ig',tone:'pink'},{name:'Facebook',desc:'Páginas e grupos',letter:'f',tone:'blue'},{name:'YouTube',desc:'Vídeos e audiência',letter:'▶',tone:'red'},{name:'Pinterest',desc:'Pins e descoberta',letter:'p',tone:'coral'},{name:'TikTok',desc:'Vídeos curtos',letter:'♪',tone:'dark'}].map(c=><div className="channel-row" key={c.name}><span className={`channel-logo ${c.tone}`}>{c.letter}</span><span className="channel-name"><strong>{c.name}</strong><small>{c.desc}</small></span><span className="disconnected">Não conectado</span></div>)}</div><button className="panel-link" onClick={() => setActive('Integrações')}>Gerenciar integrações <ArrowUpRight size={15} /></button></section></div>
+            <section className="panel quickstart"><div className="panel-heading"><div><span className="panel-kicker">PRÓXIMOS PASSOS</span><h2>Monte sua operação</h2></div><span className="progress-label">0 de 4 concluídos</span></div><div className="progress-track"><i /></div><div className="steps-grid">{[{icon:Package,title:'Cadastre seu produto',desc:'Defina o que você quer divulgar.',action:'Abrir produtos',section:'Produtos' as Section},{icon:BrainCircuit,title:'Analise seu mercado',desc:'Encontre oportunidades e públicos.',action:'Explorar inteligência',section:'Inteligência de mercado' as Section},{icon:FileImage,title:'Crie seu primeiro conteúdo',desc:'Prepare uma peça para seus canais.',action:'Abrir estúdio',section:'Estúdio criativo' as Section},{icon:Link2,title:'Configure seu rastreamento',desc:'Prepare a atribuição de resultados.',action:'Ver integrações',section:'Integrações' as Section}].map((s,i)=>{const Icon=s.icon;return <article className="step-card" key={s.title}><div className="step-number">0{i+1}</div><div className="step-icon"><Icon size={19}/></div><strong>{s.title}</strong><span>{s.desc}</span><button onClick={()=>setActive(s.section)}>{s.action} <ArrowUpRight size={14}/></button></article>;})}</div></section>
+            <footer className="footer"><span>AutoViral AI · Fase 2 — Product Center</span><span><ShieldCheck size={13}/> Dados isolados por workspace</span></footer>
+          </>}
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function ProductsPage(props: {
+  products: Product[]; loading: boolean; error: string; message: string; formOpen: boolean;
+  form: ProductForm; saving: boolean; onNew: () => void; onEdit: (product: Product) => void;
+  onDelete: (product: Product) => void; onChange: (form: ProductForm) => void;
+  onSave: (event: React.FormEvent<HTMLFormElement>) => void; onClose: () => void; onRefresh: () => void;
+}) {
+  const { products, loading, error, message, formOpen, form, saving, onNew, onEdit, onDelete, onChange, onSave, onClose, onRefresh } = props;
+  const currency = (value: number | null, code: string) => value == null ? 'Sem preço' : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: code }).format(value);
+  return <>
+    <section className="welcome-row"><div><div className="eyebrow"><span className="live-dot"/> PRODUCT CENTER</div><h1>Seus produtos, em um só lugar.</h1><p>Cadastre ofertas, organize nichos e prepare seus produtos para campanhas orgânicas.</p></div><button className="primary-button" onClick={onNew}><Plus size={17}/> Novo produto</button></section>
+    <section className="setup-banner"><div className="banner-icon"><Package size={21}/></div><div className="banner-copy"><strong>Central de produtos conectada ao workspace</strong><span>Os registros são armazenados no Supabase e separados pelo workspace autenticado.</span></div><span className="setup-status">SUPABASE</span></section>
+    {message && <p className="product-feedback success">{message}</p>}
+    {error && <p className="product-feedback error">{error}</p>}
+    <section className="panel product-panel">
+      <div className="panel-heading"><div><span className="panel-kicker">CATÁLOGO</span><h2>Produtos cadastrados <small className="count-pill">{products.length}</small></h2></div><button className="subtle-button" onClick={onRefresh}><RefreshCw size={14}/> Atualizar</button></div>
+      {loading ? <div className="product-empty"><RefreshCw className="spin" size={22}/><strong>Carregando produtos…</strong></div> :
+        products.length === 0 ? <div className="product-empty"><div className="chart-empty-icon"><Package size={22}/></div><strong>Nenhum produto cadastrado</strong><span>Comece adicionando seu primeiro produto ao catálogo.</span><button className="primary-button" onClick={onNew}><Plus size={16}/> Cadastrar produto</button></div> :
+        <div className="product-list">{products.map(product => <article className="product-row" key={product.id}><div className="product-symbol"><Package size={20}/></div><div className="product-main"><strong>{product.name}</strong><span>{product.niche || 'Nicho não definido'} · {product.product_type === 'digital' ? 'Digital' : product.product_type === 'physical' ? 'Físico' : product.product_type === 'service' ? 'Serviço' : 'Afiliado'}</span>{product.description && <small>{product.description}</small>}</div><div className="product-price">{currency(product.price, product.currency)}</div><span className={`product-status ${product.status}`}>{product.status === 'active' ? 'Ativo' : product.status === 'archived' ? 'Arquivado' : 'Rascunho'}</span><div className="product-actions"><button className="icon-button" title="Editar" onClick={() => onEdit(product)}><Pencil size={15}/></button><button className="icon-button danger-button" title="Excluir" onClick={() => onDelete(product)}><Trash2 size={15}/></button></div></article>)}</div>}
+    </section>
+    {formOpen && <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}><section className="product-modal" role="dialog" aria-modal="true" aria-labelledby="product-modal-title"><div className="modal-heading"><div><span className="panel-kicker">PRODUCT CENTER</span><h2 id="product-modal-title">{props.form.name && products.some(p => p.name === props.form.name) ? 'Editar produto' : 'Novo produto'}</h2></div><button className="icon-button" onClick={onClose}><X/></button></div>
+      <form className="product-form" onSubmit={onSave}>
+        <label>Nome do produto *<input required maxLength={180} value={form.name} onChange={e => onChange({...form,name:e.target.value})} placeholder="Ex.: Curso de Inglês Completo"/></label>
+        <div className="form-two"><label>Tipo<select value={form.product_type} onChange={e => onChange({...form,product_type:e.target.value as ProductForm['product_type']})}><option value="digital">Digital</option><option value="physical">Físico</option><option value="service">Serviço</option><option value="affiliate">Afiliado</option></select></label><label>Status<select value={form.status} onChange={e => onChange({...form,status:e.target.value as ProductForm['status']})}><option value="draft">Rascunho</option><option value="active">Ativo</option><option value="archived">Arquivado</option></select></label></div>
+        <label>Nicho<input maxLength={120} value={form.niche} onChange={e => onChange({...form,niche:e.target.value})} placeholder="Ex.: Educação, saúde, culinária"/></label>
+        <label>Descrição<textarea rows={3} maxLength={3000} value={form.description} onChange={e => onChange({...form,description:e.target.value})} placeholder="Descreva a oferta e seus diferenciais"/></label>
+        <div className="form-two"><label>Preço<input inputMode="decimal" value={form.price} onChange={e => onChange({...form,price:e.target.value})} placeholder="0,00"/></label><label>Moeda<select value={form.currency} onChange={e => onChange({...form,currency:e.target.value})}><option value="BRL">BRL — Real</option><option value="USD">USD — Dólar</option><option value="EUR">EUR — Euro</option></select></label></div>
+        <label>Link de checkout<input type="url" value={form.checkout_url} onChange={e => onChange({...form,checkout_url:e.target.value})} placeholder="https://…"/></label>
+        {message && <p className="product-feedback error">{message}</p>}
+        <div className="modal-actions"><button type="button" className="subtle-button" onClick={onClose}>Cancelar</button><button className="primary-button" disabled={saving}>{saving ? 'Salvando…' : 'Salvar produto'}</button></div>
+      </form></section></div>}
+  </>;
+}
+function Brand() { return <div className="brand"><span className="brand-mark"><Command size={19}/></span><span>AUTO<span>VIRAL</span><small>AI</small></span></div>; }
+export default App;
