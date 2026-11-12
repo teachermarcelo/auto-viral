@@ -12,6 +12,19 @@ Extensão Manifest V3 para capturar manualmente páginas e trechos públicos que
 
 ## Como usar
 
+### Mapear vários grupos do Facebook
+
+1. Abra a busca do Facebook e pesquise o tema desejado.
+2. Aguarde os resultados aparecerem e role a página para carregar mais cartões.
+3. Clique no ícone da extensão e em **Mapear grupos visíveis nesta página**.
+4. Confira os links encontrados, desmarque o que não deseja guardar ou use selecionar todos/limpar seleção.
+5. Clique em **Salvar grupos selecionados**. Links repetidos são ignorados.
+6. Exporte o JSON e importe-o na área **Grupos e oportunidades** do AutoViral.
+
+O mapeador lê somente links de grupos que já estejam presentes e visíveis no DOM da página aberta. Ele não percorre membros, perfis, listas privadas, não entra automaticamente em grupos e não faz coleta em segundo plano. Se aparecerem poucos resultados, role a página para carregar mais e execute o mapeamento novamente.
+
+### Capturar uma página individual
+
 1. Abra uma página pública.
 2. Selecione um trecho relevante, se desejar.
 3. Clique no ícone da extensão.
