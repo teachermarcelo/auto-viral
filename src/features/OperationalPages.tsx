@@ -15,6 +15,7 @@ type Community = { id: string; name: string; url: string; topic: string; status:
 
 const PROJECT_URL = 'https://nuyzvpkvawixidotuuio.supabase.co';
 const CLICK_URL = `${PROJECT_URL}/functions/v1/av-click?c=`;
+const LEAD_URL = `${PROJECT_URL}/functions/v1/av-lead-capture?c=`;
 
 function validHttpUrl(value: string) {
   try { const parsed = new URL(value); return parsed.protocol === 'https:' || parsed.protocol === 'http:'; }
@@ -39,6 +40,7 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
   const [clickCounts, setClickCounts] = useState<Record<string, number>>({});
   const [clickSeries, setClickSeries] = useState<{ label: string; count: number }[]>([]);
   const [scheduledPosts, setScheduledPosts] = useState<ScheduledPost[]>([]);
+  const [leadsByCampaign, setLeadsByCampaign] = useState<Record<string, { count: number; cities: string[] }>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
@@ -55,17 +57,27 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
   const load = useCallback(async () => {
     if (!supabase || !workspaceId) { setLoading(false); return; }
     setLoading(true);
-    const [productResult, campaignResult, linkResult, postResult] = await Promise.all([
+    const [productResult, campaignResult, linkResult, postResult, leadResult] = await Promise.all([
       supabase.from('av_products').select('id,name').eq('workspace_id', workspaceId).order('name'),
       supabase.from('av_campaigns').select('id,name,product_id,objective,status,copy_text,destination_url,image_url,video_url,posting_interval_seconds,pause_after_posts,pause_duration_minutes').eq('workspace_id', workspaceId).order('created_at', { ascending: false }),
       supabase.from('av_tracking_links').select('id,campaign_id,code,destination_url,label').eq('workspace_id', workspaceId).order('created_at', { ascending: false }),
       supabase.from('av_campaign_posts').select('id,campaign_id,scheduled_at,status,copy_snapshot,destination_url,published_url').eq('workspace_id', workspaceId).order('scheduled_at', { ascending: true }),
+      supabase.from('av_leads').select('campaign_id,city').eq('workspace_id', workspaceId),
     ]);
     if (productResult.error) setMessage(`Produtos: ${productResult.error.message}`);
     if (campaignResult.error) setMessage(`Campanhas: ${campaignResult.error.message}`);
     if (linkResult.error) setMessage(`Links: ${linkResult.error.message}`);
     if (postResult.error) setMessage(`Calendário: ${postResult.error.message}`);
     setScheduledPosts((postResult.data ?? []) as ScheduledPost[]);
+    if (leadResult.error) setMessage(`Leads: ${leadResult.error.message}`);
+    const leadStats: Record<string, { count: number; cities: string[] }> = {};
+    for (const lead of leadResult.data ?? []) {
+      if (!lead.campaign_id) continue;
+      leadStats[lead.campaign_id] ??= { count: 0, cities: [] };
+      leadStats[lead.campaign_id].count += 1;
+      if (lead.city && !leadStats[lead.campaign_id].cities.includes(lead.city)) leadStats[lead.campaign_id].cities.push(lead.city);
+    }
+    setLeadsByCampaign(leadStats);
     setProducts((productResult.data ?? []) as ProductOption[]);
     setCampaigns((campaignResult.data ?? []) as Campaign[]);
     setLinks((linkResult.data ?? []) as TrackingLink[]);
@@ -224,7 +236,7 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
           const clicks = link ? (clickCounts[link.id] ?? 0) : 0;
           return <article className="av-list-row" key={campaign.id}>
             <div className="av-list-main"><strong>{campaign.name}</strong><small>{campaign.status} · {campaign.channel} · {campaign.posting_interval_seconds}s de intervalo</small><p>{campaign.copy_text || 'Sem copy cadastrada.'}</p>
-              {link && <div className="av-track-row"><code>{CLICK_URL}{link.code}</code><button className="av-icon-button" title="Copiar link rastreável" onClick={() => void navigator.clipboard.writeText(CLICK_URL + link.code)}><Copy size={15}/></button><span>{clicks} clique(s) registrado(s)</span></div>}
+              {link && <div className="av-track-row"><code>{CLICK_URL}{link.code}</code><button className="av-icon-button" title="Copiar link rastreável" onClick={() => void navigator.clipboard.writeText(CLICK_URL + link.code)}><Copy size={15}/></button><span>{clicks} clique(s) registrado(s)</span><a href={LEAD_URL + link.code} target="_blank" rel="noreferrer">Abrir formulário de lead</a><button className="av-icon-button" title="Copiar formulário de lead" onClick={() => void navigator.clipboard.writeText(LEAD_URL + link.code)}><Copy size={15}/></button></div>}{leadsByCampaign[campaign.id] && <p className="av-lead-summary"><strong>{leadsByCampaign[campaign.id].count} lead(s) com consentimento</strong>{leadsByCampaign[campaign.id].cities.length ? ` · Cidades informadas: ${leadsByCampaign[campaign.id].cities.join(', ')}` : ' · Nenhuma cidade informada ainda'}</p>}
             </div>
             <button className="av-button secondary small" onClick={() => { setScheduleOpen(scheduleOpen === campaign.id ? null : campaign.id); setScheduleStart(localDateTimeValue(new Date(Date.now()+3600000))); }}><CalendarClock size={15}/> Lembretes</button>
             {scheduleOpen === campaign.id && <div className="av-schedule">
