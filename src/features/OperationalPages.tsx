@@ -59,7 +59,7 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
     setLoading(true);
     const [productResult, campaignResult, linkResult, postResult, leadResult] = await Promise.all([
       supabase.from('av_products').select('id,name').eq('workspace_id', workspaceId).order('name'),
-      supabase.from('av_campaigns').select('id,name,product_id,objective,status,copy_text,destination_url,image_url,video_url,posting_interval_seconds,pause_after_posts,pause_duration_minutes').eq('workspace_id', workspaceId).order('created_at', { ascending: false }),
+      supabase.from('av_campaigns').select('id,name,product_id,objective,status,channel,copy_text,destination_url,image_url,video_url,posting_interval_seconds,pause_after_posts,pause_duration_minutes').eq('workspace_id', workspaceId).order('created_at', { ascending: false }),
       supabase.from('av_tracking_links').select('id,campaign_id,code,destination_url,label').eq('workspace_id', workspaceId).order('created_at', { ascending: false }),
       supabase.from('av_campaign_posts').select('id,campaign_id,scheduled_at,status,copy_snapshot,destination_url,published_url').eq('workspace_id', workspaceId).order('scheduled_at', { ascending: true }),
       supabase.from('av_leads').select('campaign_id,city').eq('workspace_id', workspaceId),
