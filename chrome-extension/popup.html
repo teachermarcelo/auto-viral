@@ -12,8 +12,9 @@
       <div class="mark">✦</div>
       <div><strong>AutoViral <span>AI</span></strong><small>CAPTURA DE OPORTUNIDADES</small></div>
     </header>
-    <p class="hint">Capture somente o conteúdo que você escolher na aba atual.</p>
-    <button id="capture" class="primary">＋ Capturar esta página</button>
+    <p class="hint">Mapeie vários links de grupos que já estejam visíveis nos resultados carregados.</p>
+    <button id="map-groups" class="primary">⌕ Mapear grupos visíveis nesta página</button>
+    <button id="capture" class="secondary full">＋ Capturar esta página</button>
     <p id="status" class="status" role="status">Pronto para capturar.</p>
     <section id="editor" class="editor hidden">
       <label>Sinal identificado
@@ -31,6 +32,7 @@
       </label>
       <button id="save" class="primary">Salvar captura no Chrome</button>
     </section>
+    <section id="discovered" class="editor hidden"></section>
     <section class="saved">
       <div class="section-title"><strong>Capturas salvas</strong><span id="count">0</span></div>
       <div id="items" class="items"><p class="empty">Nenhuma captura salva.</p></div>
@@ -39,7 +41,7 @@
         <button id="open-app" class="secondary">Abrir AutoViral</button>
       </div>
     </section>
-    <footer>Captura manual · Sem disparos ou coleta em segundo plano</footer>
+    <footer>Mapeamento manual · Sem coleta de membros ou ações automáticas</footer>
   </main>
   <script src="popup.js"></script>
 </body>
