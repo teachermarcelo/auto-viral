@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AutoViral AI — Captura de Oportunidades",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Capture páginas e conversas públicas manualmente para revisar oportunidades no AutoViral AI.",
   "permissions": ["activeTab", "scripting", "storage"],
   "action": {
