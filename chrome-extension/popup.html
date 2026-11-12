@@ -1,48 +1,8 @@
-<!doctype html>
-<html lang="pt-BR">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>AutoViral AI</title>
-  <link rel="stylesheet" href="popup.css">
-</head>
-<body>
-  <main class="shell">
-    <header class="header">
-      <div class="mark">✦</div>
-      <div><strong>AutoViral <span>AI</span></strong><small>CAPTURA DE OPORTUNIDADES</small></div>
-    </header>
-    <p class="hint">Mapeie vários links de grupos que já estejam visíveis nos resultados carregados.</p>
-    <button id="map-groups" class="primary">⌕ Mapear grupos visíveis nesta página</button>
-    <button id="capture" class="secondary full">＋ Capturar esta página</button>
-    <p id="status" class="status" role="status">Pronto para capturar.</p>
-    <section id="editor" class="editor hidden">
-      <label>Sinal identificado
-        <select id="signal">
-          <option>Dor explícita</option>
-          <option>Pergunta recorrente</option>
-          <option>Pedido de recomendação</option>
-          <option>Intenção de compra</option>
-          <option>Comparação de soluções</option>
-          <option>Outro</option>
-        </select>
-      </label>
-      <label>Observação
-        <textarea id="notes" rows="2" placeholder="O que chamou sua atenção nesta página?"></textarea>
-      </label>
-      <button id="save" class="primary">Salvar captura no Chrome</button>
-    </section>
-    <section id="discovered" class="editor hidden"></section>
-    <section class="saved">
-      <div class="section-title"><strong>Capturas salvas</strong><span id="count">0</span></div>
-      <div id="items" class="items"><p class="empty">Nenhuma captura salva.</p></div>
-      <div class="actions">
-        <button id="export" class="secondary">Exportar JSON</button>
-        <button id="open-app" class="secondary">Abrir AutoViral</button>
-      </div>
-    </section>
-    <footer>Mapeamento manual · Sem coleta de membros ou ações automáticas</footer>
-  </main>
-  <script src="popup.js"></script>
-</body>
-</html>
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AutoViral AI — Mapeador</title><link rel="stylesheet" href="popup.css"></head><body><main class="shell">
+<header class="header"><div class="mark">✦</div><div><strong>AutoViral <span>AI</span></strong><small>INTELLIGENCE GROUP MAPPER · 0.3.0</small></div><span id="live" class="live"><i></i> ATIVO</span></header>
+<section class="hero"><div class="eyebrow">MAPEAMENTO CONTÍNUO</div><h1>Encontre comunidades enquanto navega.</h1><p>Role os resultados do Facebook. Os links visíveis são identificados e deduplicados automaticamente.</p><div class="stats"><div><strong id="total">0</strong><small>GRUPOS NA FILA</small></div><div><strong id="pending">0</strong><small>AGUARDANDO ENVIO</small></div><div><strong id="sent">0</strong><small>ENVIADOS</small></div></div><div class="controls"><button id="pause" class="secondary">Pausar mapeamento</button><button id="scan" class="secondary">Mapear agora</button></div></section>
+<section class="panel"><div class="panel-title"><div><span class="eyebrow">SINCRONIZAÇÃO SEGURA</span><h2>Conectar à plataforma</h2></div><span id="connection" class="pill off">Desconectado</span></div>
+<div id="login-box"><label>E-mail da conta AutoViral<input id="email" type="email" autocomplete="username" placeholder="voce@email.com"></label><label>Senha<input id="password" type="password" autocomplete="current-password" placeholder="Sua senha da plataforma"></label><button id="connect" class="primary">Conectar e autorizar envio</button><small class="muted">A senha é enviada diretamente ao Supabase Auth. A extensão guarda apenas os tokens de sessão, nunca sua senha.</small></div>
+<div id="connected-box" class="hidden"><p id="account" class="account"></p><button id="disconnect" class="secondary">Desconectar conta</button></div><button id="send" class="primary send" disabled>↑ Enviar grupos para a plataforma</button><p id="status" class="status" role="status">Aguardando leitura dos resultados do Facebook.</p></section>
+<section class="panel"><div class="panel-title"><div><span class="eyebrow">CAPTURA AO VIVO</span><h2>Últimos grupos encontrados</h2></div><span id="visible-count" class="pill">0</span></div><div id="items" class="items"><p class="empty">Abra uma busca de grupos no Facebook e role a página.</p></div><div class="bottom-actions"><button id="export" class="secondary">Exportar backup JSON</button><button id="clear" class="text-button">Limpar fila local</button></div></section>
+<footer>Captura somente links de grupos presentes na página carregada. Não coleta membros, não entra em grupos e não publica ou envia mensagens.</footer></main><script src="popup.js"></script></body></html>
