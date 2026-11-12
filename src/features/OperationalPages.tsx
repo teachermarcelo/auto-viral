@@ -374,3 +374,41 @@ export function CommunitiesPage({ workspaceId }: { workspaceId: string | null })
     </section>
   </div>;
 }
+
+
+export function PostsPage({ workspaceId }: { workspaceId: string | null }) {
+  const [rows, setRows] = useState<{id:string;campaign_id:string;scheduled_at:string;status:string;copy_snapshot:string;destination_url:string|null;published_url:string|null}[]>([]);
+  const [campaignNames, setCampaignNames] = useState<Record<string,string>>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const load = useCallback(async () => {
+    if (!supabase || !workspaceId) { setRows([]); setLoading(false); return; }
+    setLoading(true); setError('');
+    const [posts,campaigns] = await Promise.all([
+      supabase.from('av_campaign_posts').select('id,campaign_id,scheduled_at,status,copy_snapshot,destination_url,published_url').eq('workspace_id',workspaceId).order('scheduled_at',{ascending:false}).limit(200),
+      supabase.from('av_campaigns').select('id,name').eq('workspace_id',workspaceId)
+    ]);
+    if(posts.error) setError(posts.error.message); else setRows(posts.data ?? []);
+    setCampaignNames(Object.fromEntries((campaigns.data ?? []).map((c:{id:string;name:string})=>[c.id,c.name])));
+    setLoading(false);
+  },[workspaceId]);
+  useEffect(()=>{void load();},[load]);
+  const published=rows.filter(r=>r.status==='published').length;
+  const pending=rows.filter(r=>r.status==='scheduled').length;
+  const failed=rows.filter(r=>r.status==='failed').length;
+  return <div className="av-page posts-overview">
+    <section className="av-page-heading"><div><span className="av-eyebrow"><FileText size={14}/> RESULTADOS E HISTÓRICO</span><h1>Posts</h1><p>Histórico de publicações e lembretes registrados no AutoViral.</p></div><button className="av-button secondary" onClick={()=>void load()}><RefreshCw size={15}/> Atualizar</button></section>
+    {error && <div className="av-message">{error}</div>}
+    <section className="posts-stats">
+      <article className="av-panel"><small>Publicados</small><strong>{published}</strong><span>Registrados como publicados</span></article>
+      <article className="av-panel"><small>Pendentes</small><strong>{pending}</strong><span>Lembretes aguardando ação</span></article>
+      <article className="av-panel"><small>Falhas</small><strong>{failed}</strong><span>Registros marcados com falha</span></article>
+      <article className="av-panel"><small>Total histórico</small><strong>{rows.length}</strong><span>Últimos 200 registros</span></article>
+    </section>
+    <section className="av-panel"><div className="av-panel-title"><h2>Links dos posts e histórico</h2><span>{rows.length} registro(s)</span></div>
+      {loading ? <p className="av-empty">Carregando histórico…</p> : rows.length===0 ? <p className="av-empty">Ainda não há posts registrados. Crie lembretes em Campanhas e registre as publicações realizadas.</p> :
+      <div className="av-list">{rows.map(row=><article className="av-list-row" key={row.id}><div className="av-list-main"><strong>{campaignNames[row.campaign_id] || 'Campanha'}</strong><small>{new Date(row.scheduled_at).toLocaleString('pt-BR')} · {row.status}</small><p>{row.copy_snapshot}</p>{(row.published_url || row.destination_url) && <a href={row.published_url || row.destination_url || '#'} target="_blank" rel="noreferrer">{row.published_url ? 'Abrir publicação registrada' : 'Abrir destino' } <ExternalLink size={12}/></a>}</div><span className={'post-status '+row.status}>{row.status==='published'?'Publicado':row.status==='scheduled'?'Pendente':row.status==='failed'?'Falhou':row.status}</span></article>)}</div>}
+    </section>
+    <p className="av-note">A plataforma registra apenas status e URLs informados ou retornados por integrações oficiais. Impressões, respostas e curtidas só serão exibidas quando uma API autorizada fornecer esses eventos.</p>
+  </div>;
+}
