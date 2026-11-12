@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Activity, ArrowDownRight, ArrowUpRight, BarChart3, Bell, Bot, BrainCircuit,
+  Activity, ArrowUpRight, BarChart3, Bell, Bot, BrainCircuit,
   ChevronDown, CircleHelp, Command, Compass, ContactRound, FileImage, Globe2,
-  LayoutDashboard, Link2, LogOut, Menu, MessageSquareText, Package, Plus,
+  LayoutDashboard, Link2, LogOut, Menu, Package, Plus,
   Search, Settings2, ShieldCheck, Sparkles, Target, Users, WandSparkles, X,
 } from 'lucide-react';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
