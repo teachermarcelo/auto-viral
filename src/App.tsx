@@ -33,6 +33,7 @@ function App() {
   const [active, setActive] = useState<Section>('Visão geral');
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [workspaceName, setWorkspaceName] = useState('Meu workspace');
   const [authReady, setAuthReady] = useState(!isSupabaseConfigured);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [email, setEmail] = useState('');
@@ -40,13 +41,45 @@ function App() {
   const [authMessage, setAuthMessage] = useState('');
   const [loading, setLoading] = useState(false);
 
+  async function loadOrCreateWorkspace(userId: string) {
+    if (!supabase) return;
+    const { data: membership, error: membershipError } = await supabase
+      .from('av_workspace_members')
+      .select('workspace_id')
+      .eq('user_id', userId)
+      .limit(1)
+      .maybeSingle();
+    if (membershipError) { console.error('Falha ao consultar workspace:', membershipError.message); return; }
+    if (membership?.workspace_id) {
+      const { data: workspace } = await supabase.from('av_workspaces').select('name').eq('id', membership.workspace_id).single();
+      if (workspace?.name) setWorkspaceName(workspace.name);
+      return;
+    }
+    const suffix = crypto.randomUUID().replaceAll('-', '').slice(0, 10);
+    const { data: workspace, error: workspaceError } = await supabase
+      .from('av_workspaces')
+      .insert({ name: 'Meu workspace', slug: `av-${suffix}`, owner_id: userId })
+      .select('id,name')
+      .single();
+    if (workspaceError || !workspace) { console.error('Falha ao criar workspace:', workspaceError?.message); return; }
+    const { error: memberError } = await supabase.from('av_workspace_members').insert({ workspace_id: workspace.id, user_id: userId, role: 'owner' });
+    if (memberError) { console.error('Falha ao registrar proprietário do workspace:', memberError.message); return; }
+    setWorkspaceName(workspace.name);
+  }
+
   useEffect(() => {
     if (!supabase) return;
     supabase.auth.getSession().then(({ data }) => {
-      setUserEmail(data.session?.user.email ?? null);
+      const session = data.session;
+      setUserEmail(session?.user.email ?? null);
+      if (session?.user.id) void loadOrCreateWorkspace(session.user.id);
       setAuthReady(true);
     });
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => setUserEmail(session?.user.email ?? null));
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUserEmail(session?.user.email ?? null);
+      if (session?.user.id) window.setTimeout(() => void loadOrCreateWorkspace(session.user.id), 0);
+      else setWorkspaceName('Meu workspace');
+    });
     return () => data.subscription.unsubscribe();
   }, []);
 
@@ -93,7 +126,7 @@ function App() {
       {mobileOpen && <button className="mobile-scrim" aria-label="Fechar menu" onClick={() => setMobileOpen(false)} />}
       <aside className={`sidebar ${mobileOpen ? 'open' : ''}`}>
         <div className="sidebar-top"><Brand /><button className="icon-button mobile-close" onClick={() => setMobileOpen(false)}><X /></button></div>
-        <button className="workspace-switch"><span className="workspace-avatar">AV</span><span><strong>Meu workspace</strong><small>Plano inicial</small></span><ChevronDown size={16} /></button>
+        <button className="workspace-switch"><span className="workspace-avatar">AV</span><span><strong>{workspaceName}</strong><small>Plano inicial</small></span><ChevronDown size={16} /></button>
         <nav>
           {Object.entries(grouped).map(([group, items]) => <div className="nav-group" key={group}><span className="nav-label">{group}</span>{items.map(item => { const Icon = item.icon; return <button key={item.label} className={`nav-item ${active === item.label ? 'active' : ''}`} onClick={() => { setActive(item.label); setMobileOpen(false); }}><Icon size={18} /><span>{item.label}</span>{item.label === 'Automações' && <span className="nav-dot" />}</button>; })}</div>)}
         </nav>
