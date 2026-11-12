@@ -6,7 +6,7 @@ import {
   Search, Settings2, ShieldCheck, Sparkles, Target, Users, WandSparkles, X, Pencil, Trash2, RefreshCw,
 } from 'lucide-react';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
-import { CampaignsPage, CommunitiesPage, PostsPage, CRMPage, OpportunitiesPage, AnalyticsPage, IntegrationsPage } from './features/OperationalPages';
+import { CampaignsPage, CommunitiesPage, AudiencesPage, PostsPage, CRMPage, OpportunitiesPage, AnalyticsPage, IntegrationsPage } from './features/OperationalPages';
 
 type Section = 'Visão geral' | 'Produtos' | 'Campanhas' | 'Grupos e oportunidades' | 'Inteligência de mercado' | 'Radar de audiência' | 'Central de tráfego' | 'Estúdio criativo' | 'CRM e vendas' | 'Funis e páginas' | 'Automações' | 'Analytics' | 'Integrações' | 'Públicos' | 'Importar' | 'Oportunidades' | 'Comentador' | 'YouTube' | 'Posts' | 'Gerador de link' | 'Tutorial';
 type Product = {
@@ -311,7 +311,7 @@ function App() {
       <main className="main-area">
         <header className="topbar"><div className="topbar-left"><button className="icon-button menu-toggle" onClick={() => setMobileOpen(true)}><Menu /></button><div className="breadcrumb">AutoViral AI <span>/</span> <strong>{active}</strong></div></div><div className="topbar-actions"><button className="icon-button" title="Alternar tema claro/escuro" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? <Sun size={17}/> : <Moon size={17}/>}</button><div className="search-box"><Search size={16} /><input placeholder="Buscar recursos..." /><kbd>⌘ K</kbd></div><button className="icon-button notification-button"><Bell size={18} /><i /></button><div className="top-avatar">M</div></div></header>
         <div className="page-content">
-          {active === 'Integrações' ? <IntegrationsPage workspaceId={workspaceId} /> : active === 'Analytics' ? <AnalyticsPage workspaceId={workspaceId} /> : active === 'Posts' ? <PostsPage workspaceId={workspaceId} /> : active === 'CRM e vendas' ? <CRMPage workspaceId={workspaceId} /> : active === 'Oportunidades' ? <OpportunitiesPage workspaceId={workspaceId} /> : active !== 'Visão geral' && active !== 'Produtos' && active !== 'Campanhas' && active !== 'Grupos e oportunidades' ? (
+          {active === 'Públicos' ? <AudiencesPage workspaceId={workspaceId} /> : active === 'Integrações' ? <IntegrationsPage workspaceId={workspaceId} /> : active === 'Analytics' ? <AnalyticsPage workspaceId={workspaceId} /> : active === 'Posts' ? <PostsPage workspaceId={workspaceId} /> : active === 'CRM e vendas' ? <CRMPage workspaceId={workspaceId} /> : active === 'Oportunidades' ? <OpportunitiesPage workspaceId={workspaceId} /> : active !== 'Visão geral' && active !== 'Produtos' && active !== 'Campanhas' && active !== 'Grupos e oportunidades' ? (
             <WorkspaceSection active={active} onNavigate={setActive} />
           ) : active === 'Produtos' ? (
             <ProductsPage
