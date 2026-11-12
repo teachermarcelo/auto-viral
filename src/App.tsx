@@ -337,7 +337,7 @@ function App() {
 
 
 function WorkspaceSection({ active, onNavigate }: { active: Section; onNavigate: (section: Section) => void }) {
-  const config: Record<Exclude<Section, 'Visão geral' | 'Produtos' | 'Campanhas' | 'Grupos e oportunidades'>, { eyebrow: string; title: string; description: string; items: { title: string; description: string; action: string; target: Section }[] }> = {
+  const config: Partial<Record<Section, { eyebrow: string; title: string; description: string; items: { title: string; description: string; action: string; target: Section }[] }>> = {
     'Inteligência de mercado': { eyebrow: 'PESQUISA E POSICIONAMENTO', title: 'Inteligência de mercado', description: 'Organize referências, concorrentes, nichos e oportunidades antes de investir em uma campanha.', items: [
       { title: 'Grupos e comunidades', description: 'Revise os grupos mapeados e classifique oportunidades por tema.', action: 'Abrir grupos', target: 'Grupos e oportunidades' },
       { title: 'Produtos e ofertas', description: 'Consulte as ofertas cadastradas para orientar a pesquisa.', action: 'Ver produtos', target: 'Produtos' },
@@ -385,7 +385,7 @@ function WorkspaceSection({ active, onNavigate }: { active: Section; onNavigate:
       { title: 'TikTok', description: 'Conexão via TikTok for Developers e permissões aprovadas.', action: 'Configuração pendente', target: 'Integrações' },
     ] },
   };
-  const data = config[active as keyof typeof config];
+  const data = config[active] ?? { eyebrow: 'MÓDULO OPERACIONAL', title: active, description: 'Organize esta etapa da operação. Os dados serão exibidos quando houver uma fonte conectada e validada.', items: [{ title: 'Campanhas', description: 'Configure campanhas, destinos e links rastreáveis.', action: 'Abrir campanhas', target: 'Campanhas' as Section }, { title: 'Integrações', description: 'Conecte fontes oficiais para habilitar métricas e ações autorizadas.', action: 'Ver integrações', target: 'Integrações' as Section }] };
   return <div className="workspace-section">
     <section className="welcome-row"><div><div className="eyebrow"><span className="live-dot"/>{data.eyebrow}</div><h1>{data.title}</h1><p>{data.description}</p></div><button className="primary-button" onClick={() => onNavigate(active === 'Integrações' ? 'Visão geral' : 'Campanhas')}><ArrowUpRight size={16}/>{active === 'Integrações' ? 'Voltar ao painel' : 'Planejar campanha'}</button></section>
     <section className="panel section-status"><div className="panel-heading"><div><span className="panel-kicker">STATUS DO MÓDULO</span><h2>{active === 'Integrações' ? 'Conexões pendentes' : 'Área em estruturação'}</h2></div><span className="setup-status">{active === 'Integrações' ? 'NÃO CONECTADO' : 'EM CONFIGURAÇÃO'}</span></div><p>{active === 'Integrações' ? 'Nenhum canal será marcado como conectado até que a autorização real seja concluída e validada.' : 'Os atalhos abaixo levam às áreas operacionais já disponíveis enquanto este módulo recebe seus recursos próprios.'}</p></section>
