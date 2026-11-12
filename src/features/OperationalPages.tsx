@@ -10,6 +10,7 @@ type Campaign = {
   posting_interval_seconds: number; pause_after_posts: number; pause_duration_minutes: number;
 };
 type TrackingLink = { id: string; campaign_id: string | null; code: string; destination_url: string; label: string | null };
+type ScheduledPost = { id: string; campaign_id: string; scheduled_at: string; status: string; copy_snapshot: string; destination_url: string | null; published_url: string | null };
 type Community = { id: string; name: string; url: string; topic: string; status: string; notes: string | null };
 
 const PROJECT_URL = 'https://nuyzvpkvawixidotuuio.supabase.co';
@@ -36,6 +37,8 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [links, setLinks] = useState<TrackingLink[]>([]);
   const [clickCounts, setClickCounts] = useState<Record<string, number>>({});
+  const [clickSeries, setClickSeries] = useState<{ label: string; count: number }[]>([]);
+  const [scheduledPosts, setScheduledPosts] = useState<ScheduledPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
@@ -52,26 +55,40 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
   const load = useCallback(async () => {
     if (!supabase || !workspaceId) { setLoading(false); return; }
     setLoading(true);
-    const [productResult, campaignResult, linkResult] = await Promise.all([
+    const [productResult, campaignResult, linkResult, postResult] = await Promise.all([
       supabase.from('av_products').select('id,name').eq('workspace_id', workspaceId).order('name'),
       supabase.from('av_campaigns').select('id,name,product_id,objective,status,copy_text,destination_url,image_url,video_url,posting_interval_seconds,pause_after_posts,pause_duration_minutes').eq('workspace_id', workspaceId).order('created_at', { ascending: false }),
       supabase.from('av_tracking_links').select('id,campaign_id,code,destination_url,label').eq('workspace_id', workspaceId).order('created_at', { ascending: false }),
+      supabase.from('av_campaign_posts').select('id,campaign_id,scheduled_at,status,copy_snapshot,destination_url,published_url').eq('workspace_id', workspaceId).order('scheduled_at', { ascending: true }),
     ]);
     if (productResult.error) setMessage(`Produtos: ${productResult.error.message}`);
     if (campaignResult.error) setMessage(`Campanhas: ${campaignResult.error.message}`);
     if (linkResult.error) setMessage(`Links: ${linkResult.error.message}`);
+    if (postResult.error) setMessage(`Calendário: ${postResult.error.message}`);
+    setScheduledPosts((postResult.data ?? []) as ScheduledPost[]);
     setProducts((productResult.data ?? []) as ProductOption[]);
     setCampaigns((campaignResult.data ?? []) as Campaign[]);
     setLinks((linkResult.data ?? []) as TrackingLink[]);
     const ids = (linkResult.data ?? []).map((item: TrackingLink) => item.id);
     if (ids.length) {
-      const events = await supabase.from('av_tracking_events').select('tracking_link_id').in('tracking_link_id', ids);
+      const since = new Date(Date.now() - 6 * 86400000).toISOString();
+      const events = await supabase.from('av_tracking_events').select('tracking_link_id,created_at').in('tracking_link_id', ids).gte('created_at', since);
       if (!events.error) {
         const counts: Record<string, number> = {};
-        for (const event of events.data ?? []) counts[event.tracking_link_id] = (counts[event.tracking_link_id] ?? 0) + 1;
+        const daily: Record<string, number> = {};
+        for (const event of events.data ?? []) {
+          counts[event.tracking_link_id] = (counts[event.tracking_link_id] ?? 0) + 1;
+          const key = new Date(event.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+          daily[key] = (daily[key] ?? 0) + 1;
+        }
         setClickCounts(counts);
+        setClickSeries(Array.from({ length: 7 }, (_, index) => {
+          const day = new Date(); day.setDate(day.getDate() - (6 - index));
+          const label = day.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+          return { label, count: daily[label] ?? 0 };
+        }));
       }
-    } else setClickCounts({});
+    } else { setClickCounts({}); setClickSeries([]); }
     setLoading(false);
   }, [workspaceId]);
 
@@ -117,6 +134,25 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
     setForm({ name: '', product_id: '', objective: 'organic_traffic', channel: 'facebook_group', copy_text: '', destination_url: '', image_url: '', video_url: '', posting_interval_seconds: 360, pause_after_posts: 0, pause_duration_minutes: 0 });
     setSaving(false);
     await load();
+  }
+
+  async function markPostPublished(post: ScheduledPost) {
+    if (!supabase || !workspaceId) return;
+    const publishedUrl = window.prompt('Cole o link da publicação realizada (opcional):', post.destination_url ?? '');
+    if (publishedUrl === null) return;
+    if (publishedUrl.trim() && !validHttpUrl(publishedUrl.trim())) { setMessage('O link da publicação precisa ser uma URL http/https válida.'); return; }
+    const { error } = await supabase.from('av_campaign_posts').update({
+      status: 'published', published_at: new Date().toISOString(), published_url: publishedUrl.trim() || null,
+    }).eq('id', post.id).eq('workspace_id', workspaceId);
+    if (error) setMessage(`Não foi possível registrar a publicação: ${error.message}`);
+    else { setMessage('Publicação registrada manualmente.'); await load(); }
+  }
+
+  async function cancelPost(post: ScheduledPost) {
+    if (!supabase || !workspaceId) return;
+    const { error } = await supabase.from('av_campaign_posts').update({ status: 'cancelled' }).eq('id', post.id).eq('workspace_id', workspaceId);
+    if (error) setMessage(`Não foi possível cancelar o lembrete: ${error.message}`);
+    else await load();
   }
 
   async function generateReminders(campaign: Campaign) {
@@ -197,6 +233,27 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
               <button className="av-button primary small" onClick={() => void generateReminders(campaign)}>Salvar no calendário</button>
               <small>Serão criados lembretes persistentes. Nenhuma postagem será enviada automaticamente.</small>
             </div>}
+          </article>;
+        })}</div>}
+    </section>
+    <section className="av-panel">
+      <div className="av-panel-title"><h2>Cliques reais — últimos 7 dias</h2><span>Eventos registrados pelo link de rastreamento</span></div>
+      {clickSeries.length === 0 ? <p className="av-empty">Ainda não há cliques registrados nos links desta campanha. Os dados aparecerão após o primeiro acesso real.</p> :
+        <div className="av-click-chart">{clickSeries.map(day => {
+          const max = Math.max(1, ...clickSeries.map(item => item.count));
+          return <div className="av-click-day" key={day.label}><span>{day.count}</span><i style={{ height: `${Math.max(3, day.count / max * 100)}%` }}/><small>{day.label}</small></div>;
+        })}</div>}
+      <p className="av-note">O rastreamento registra cliques, origem de referência e tipo de dispositivo. A cidade não é inferida por IP; poderá ser exibida quando a pessoa informar voluntariamente sua cidade em um formulário de lead.</p>
+    </section>
+    <section className="av-panel">
+      <div className="av-panel-title"><h2>Calendário de publicações</h2><span>{scheduledPosts.filter(post => post.status === 'scheduled').length} lembrete(s) pendente(s)</span></div>
+      <p className="av-note">Os horários permanecem salvos mesmo após atualizar a página. A publicação é manual: abra o grupo ou canal, publique respeitando as regras e depois registre o resultado aqui.</p>
+      {scheduledPosts.length === 0 ? <p className="av-empty">Nenhum lembrete agendado.</p> :
+        <div className="av-list">{scheduledPosts.map(post => {
+          const campaign = campaigns.find(item => item.id === post.campaign_id);
+          return <article className="av-list-row" key={post.id}>
+            <div className="av-list-main"><strong>{campaign?.name ?? 'Campanha'}</strong><small>{new Date(post.scheduled_at).toLocaleString('pt-BR')} · {post.status}</small><p>{post.copy_snapshot}</p>{post.published_url && <a href={post.published_url} target="_blank" rel="noreferrer">Ver publicação registrada <ExternalLink size={12}/></a>}</div>
+            {post.status === 'scheduled' && <div className="av-row-actions"><button className="av-button primary small" onClick={() => void markPostPublished(post)}>Registrar publicado</button><button className="av-button secondary small" onClick={() => void cancelPost(post)}>Cancelar</button></div>}
           </article>;
         })}</div>}
     </section>
