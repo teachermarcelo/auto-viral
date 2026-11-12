@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feat/phase-1-foundation
+      - feat/platform-migration-chrome-extension
   workflow_dispatch:
 
 permissions:
