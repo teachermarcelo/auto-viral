@@ -352,7 +352,6 @@ function ProductsPage(props: {
         <label>Nicho<input maxLength={120} value={form.niche} onChange={e => onChange({...form,niche:e.target.value})} placeholder="Ex.: Educação, saúde, culinária"/></label>
         <label>Descrição<textarea rows={3} maxLength={3000} value={form.description} onChange={e => onChange({...form,description:e.target.value})} placeholder="Descreva a oferta e seus diferenciais"/></label>
         <label>Imagem do produto<input type="file" accept="image/png,image/jpeg,image/webp" onChange={e => onImageFileChange(e.target.files?.[0] ?? null)}/><small>Upload JPG, PNG ou WebP · máximo 5 MB. A imagem será armazenada no Supabase Storage.</small></label>
-        {imagePreviewUrl
         <div className="form-two"><label>Preço<input inputMode="decimal" value={form.price} onChange={e => onChange({...form,price:e.target.value})} placeholder="0,00"/></label><label>Moeda<select value={form.currency} onChange={e => onChange({...form,currency:e.target.value})}><option value="BRL">BRL — Real</option><option value="USD">USD — Dólar</option><option value="EUR">EUR — Euro</option></select></label></div>
         <label>Preço promocional<input inputMode="decimal" value={form.promo_price} onChange={e => onChange({...form,promo_price:e.target.value})} placeholder="Opcional — 0,00"/></label>
         <label>Público-alvo<textarea rows={2} maxLength={1200} value={form.target_audience} onChange={e => onChange({...form,target_audience:e.target.value})} placeholder="Para quem é este produto?"/></label>
