@@ -1,6 +1,6 @@
 const BASE="https://nuyzvpkvawixidotuuio.supabase.co",KEY="sb_publishable_Xe8zdn_sbokiGy1aIvu-VQ_jGxV2qWS",GROUPS="autoViralDiscoveredGroups";
 let running=false;
-const norm=v=>{const u=new URL(v);u.hash="";u.search="";u.hostname=u.hostname.toLowerCase().replace(/^www\\./,"");return u.toString().replace(/\\/$/,"");};
+const norm=v=>{const u=new URL(v);u.hash="";u.search="";u.hostname=u.hostname.toLowerCase();if(u.hostname.startsWith("www."))u.hostname=u.hostname.slice(4);const out=u.toString();return out.endsWith("/")?out.slice(0,-1):out;};
 async function state(){return chrome.storage.local.get({[GROUPS]:[],autoViralAuthSession:null,autoViralSentUrls:[]});}
 async function saveSession(s){await chrome.storage.local.set({autoViralAuthSession:s});}
 async function request(path,opts={},token){const r=await fetch(BASE+path,{...opts,headers:{apikey:KEY,...(token?{Authorization:"Bearer "+token}:{}),...(opts.body?{"Content-Type":"application/json"}:{}),Prefer:"return=minimal",...(opts.headers||{})}});const t=await r.text();let b=null;try{b=t?JSON.parse(t):null;}catch{}if(!r.ok)throw Error(b?.message||b?.msg||b?.error_description||t||"Falha na sincronização.");return b;}
