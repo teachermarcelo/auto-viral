@@ -321,7 +321,7 @@ function App() {
 
 function ProductsPage(props: {
   products: Product[]; loading: boolean; error: string; message: string; formOpen: boolean;
-  form: ProductForm; saving: boolean; onNew: () => void; onEdit: (product: Product) => void;
+  form: ProductForm; saving: boolean; imageFile: File | null; onImageFileChange: (file: File | null) => void; onNew: () => void; onEdit: (product: Product) => void;
   onDelete: (product: Product) => void; onChange: (form: ProductForm) => void;
   onSave: (event: React.FormEvent<HTMLFormElement>) => void; onClose: () => void; onRefresh: () => void;
 }) {
