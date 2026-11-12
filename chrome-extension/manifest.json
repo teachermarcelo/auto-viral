@@ -1,21 +1,36 @@
 {
   "manifest_version": 3,
   "name": "AutoViral AI — Mapeador de Grupos",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Mapeia grupos públicos exibidos na pesquisa do Facebook enquanto você navega e sincroniza com o AutoViral AI.",
-  "permissions": ["activeTab", "scripting", "storage"],
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "alarms"
+  ],
   "host_permissions": [
     "https://www.facebook.com/*",
     "https://facebook.com/*",
     "https://nuyzvpkvawixidotuuio.supabase.co/*"
   ],
-  "content_scripts": [{
-    "matches": ["https://www.facebook.com/*", "https://facebook.com/*"],
-    "js": ["content.js"],
-    "run_at": "document_idle"
-  }],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.facebook.com/*",
+        "https://facebook.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
   "action": {
     "default_title": "AutoViral AI — Mapeador de Grupos",
     "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
   }
 }
