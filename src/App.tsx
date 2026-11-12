@@ -194,11 +194,13 @@ function App() {
     setSavingProduct(true);
     setProductMessage('');
     let uploadedImageUrl = productForm.image_url.trim() || null;
+    let uploadedImagePath: string | null = null;
     if (productImageFile) {
-      const extension = productImageFile.name.split('.').pop()?.toLowerCase() || 'jpg';
+      const extension = productImageFile.type === 'image/png' ? 'png' : productImageFile.type === 'image/webp' ? 'webp' : 'jpg';
       const objectPath = `${workspaceId}/${crypto.randomUUID()}.${extension}`;
       const { error: uploadError } = await supabase.storage.from('av-product-media').upload(objectPath, productImageFile, { contentType: productImageFile.type, cacheControl: '3600', upsert: false });
       if (uploadError) { setSavingProduct(false); setProductMessage(`Falha no upload da imagem: ${uploadError.message}`); return; }
+      uploadedImagePath = objectPath;
       uploadedImageUrl = supabase.storage.from('av-product-media').getPublicUrl(objectPath).data.publicUrl;
     }
     const payload = {
@@ -212,7 +214,10 @@ function App() {
       : supabase.from('av_products').insert({ ...payload, workspace_id: workspaceId });
     const { error } = await query;
     setSavingProduct(false);
-    if (error) { setProductMessage(`Erro ao salvar produto: ${error.message}`); return; }
+    if (error) {
+      if (uploadedImagePath) await supabase.storage.from('av-product-media').remove([uploadedImagePath]);
+      setProductMessage(`Erro ao salvar produto: ${error.message}`); return;
+    }
     setFormOpen(false);
     setProductImageFile(null);
     setProductMessage(editingProductId ? 'Produto atualizado.' : 'Produto cadastrado.');
