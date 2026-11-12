@@ -106,20 +106,33 @@ $$;
 
 create or replace function private.av_is_workspace_admin(target_workspace uuid)
 returns boolean language sql stable security definer set search_path = ''
-as $$
+as $
   select exists (
     select 1 from public.av_workspace_members m
     where m.workspace_id = target_workspace
       and m.user_id = (select auth.uid())
       and m.role in ('owner','admin')
   );
-$$;
+$;
+
+create or replace function private.av_is_workspace_owner(target_workspace uuid)
+returns boolean language sql stable security definer set search_path = ''
+as $
+  select exists (
+    select 1 from public.av_workspace_members m
+    where m.workspace_id = target_workspace
+      and m.user_id = (select auth.uid())
+      and m.role = 'owner'
+  );
+$;
 
 revoke all on function private.av_is_workspace_member(uuid) from public, anon;
 revoke all on function private.av_is_workspace_admin(uuid) from public, anon;
+revoke all on function private.av_is_workspace_owner(uuid) from public, anon;
 grant usage on schema private to authenticated;
 grant execute on function private.av_is_workspace_member(uuid) to authenticated;
 grant execute on function private.av_is_workspace_admin(uuid) to authenticated;
+grant execute on function private.av_is_workspace_owner(uuid) to authenticated;
 
 alter table public.av_profiles enable row level security;
 alter table public.av_workspaces enable row level security;
@@ -149,11 +162,11 @@ create policy av_members_insert_owner_self on public.av_workspace_members for in
   with check (user_id = (select auth.uid()) and role = 'owner' and exists (
     select 1 from public.av_workspaces w where w.id = workspace_id and w.owner_id = (select auth.uid())
   ));
-create policy av_members_update_admin on public.av_workspace_members for update to authenticated
-  using ((select private.av_is_workspace_admin(workspace_id)))
-  with check ((select private.av_is_workspace_admin(workspace_id)));
-create policy av_members_delete_admin on public.av_workspace_members for delete to authenticated
-  using ((select private.av_is_workspace_admin(workspace_id)) and user_id <> (select auth.uid()));
+create policy av_members_update_owner on public.av_workspace_members for update to authenticated
+  using ((select private.av_is_workspace_owner(workspace_id)))
+  with check ((select private.av_is_workspace_owner(workspace_id)));
+create policy av_members_delete_owner on public.av_workspace_members for delete to authenticated
+  using ((select private.av_is_workspace_owner(workspace_id)) and user_id <> (select auth.uid()));
 
 -- Workspace-owned operational data.
 create policy av_products_select_member on public.av_products for select to authenticated using ((select private.av_is_workspace_member(workspace_id)));
