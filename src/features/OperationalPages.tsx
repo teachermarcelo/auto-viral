@@ -84,7 +84,7 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
     const ids = (linkResult.data ?? []).map((item: TrackingLink) => item.id);
     if (ids.length) {
       const since = new Date(Date.now() - 6 * 86400000).toISOString();
-      const events = await supabase.from('av_tracking_events').select('tracking_link_id,created_at').in('tracking_link_id', ids).gte('created_at', since);
+      const events = await supabase.from('av_tracking_events').select('tracking_link_id,created_at').in('tracking_link_id', ids).eq('event_type', 'click').gte('created_at', since);
       if (!events.error) {
         const counts: Record<string, number> = {};
         const daily: Record<string, number> = {};
