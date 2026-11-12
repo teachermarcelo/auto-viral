@@ -2,13 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   Activity, ArrowUpRight, BarChart3, Bell, Bot, BrainCircuit, Megaphone,
   ChevronDown, CircleHelp, Command, Compass, ContactRound, FileImage, Globe2,
-  LayoutDashboard, Link2, LogOut, Menu, Package, Plus,
+  LayoutDashboard, Link2, LogOut, Menu, Package, Plus, Sun, Moon, MessageSquare, Play, FileText, BookOpen, UploadCloud,
   Search, Settings2, ShieldCheck, Sparkles, Target, Users, WandSparkles, X, Pencil, Trash2, RefreshCw,
 } from 'lucide-react';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
-import { CampaignsPage, CommunitiesPage } from './features/OperationalPages';
+import { CampaignsPage, CommunitiesPage, PostsPage } from './features/OperationalPages';
 
-type Section = 'Visão geral' | 'Produtos' | 'Campanhas' | 'Grupos e oportunidades' | 'Inteligência de mercado' | 'Radar de audiência' | 'Central de tráfego' | 'Estúdio criativo' | 'CRM e vendas' | 'Funis e páginas' | 'Automações' | 'Analytics' | 'Integrações';
+type Section = 'Visão geral' | 'Produtos' | 'Campanhas' | 'Grupos e oportunidades' | 'Inteligência de mercado' | 'Radar de audiência' | 'Central de tráfego' | 'Estúdio criativo' | 'CRM e vendas' | 'Funis e páginas' | 'Automações' | 'Analytics' | 'Integrações' | 'Públicos' | 'Importar' | 'Comentador' | 'YouTube' | 'Posts' | 'Gerador de link' | 'Tutorial';
 type Product = {
   id: string;
   name: string;
@@ -51,15 +51,22 @@ const sections: { label: Section; icon: typeof LayoutDashboard; group: string }[
   { label: 'Visão geral', icon: LayoutDashboard, group: 'WORKSPACE' },
   { label: 'Produtos', icon: Package, group: 'ESTRATÉGIA' },
   { label: 'Campanhas', icon: Megaphone, group: 'CRESCIMENTO' },
+  { label: 'Públicos', icon: Users, group: 'ESTRATÉGIA' },
+  { label: 'Importar', icon: UploadCloud, group: 'ESTRATÉGIA' },
   { label: 'Grupos e oportunidades', icon: Users, group: 'ESTRATÉGIA' },
   { label: 'Inteligência de mercado', icon: BrainCircuit, group: 'ESTRATÉGIA' },
   { label: 'Radar de audiência', icon: Compass, group: 'ESTRATÉGIA' },
   { label: 'Central de tráfego', icon: Globe2, group: 'CRESCIMENTO' },
   { label: 'Estúdio criativo', icon: WandSparkles, group: 'CRESCIMENTO' },
+  { label: 'Comentador', icon: MessageSquare, group: 'CRESCIMENTO' },
+  { label: 'YouTube', icon: Play, group: 'CRESCIMENTO' },
+  { label: 'Posts', icon: FileText, group: 'RESULTADOS' },
   { label: 'CRM e vendas', icon: ContactRound, group: 'CRESCIMENTO' },
   { label: 'Funis e páginas', icon: Link2, group: 'CRESCIMENTO' },
   { label: 'Automações', icon: Bot, group: 'INTELIGÊNCIA' },
   { label: 'Analytics', icon: BarChart3, group: 'INTELIGÊNCIA' },
+  { label: 'Gerador de link', icon: Link2, group: 'FERRAMENTAS' },
+  { label: 'Tutorial', icon: BookOpen, group: 'FERRAMENTAS' },
   { label: 'Integrações', icon: Settings2, group: 'SISTEMA' },
 ];
 const metrics = [
@@ -71,6 +78,8 @@ const metrics = [
 
 function App() {
   const [active, setActive] = useState<Section>('Visão geral');
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => (localStorage.getItem('av-theme') as 'dark' | 'light') || 'dark');
+  useEffect(() => { document.documentElement.dataset.theme = theme; localStorage.setItem('av-theme', theme); }, [theme]);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [workspaceName, setWorkspaceName] = useState('Meu workspace');
@@ -296,12 +305,12 @@ function App() {
         <nav>
           {Object.entries(grouped).map(([group, items]) => <div className="nav-group" key={group}><span className="nav-label">{group}</span>{items.map(item => { const Icon = item.icon; return <button key={item.label} className={`nav-item ${active === item.label ? 'active' : ''}`} onClick={() => { setActive(item.label); setMobileOpen(false); }}><Icon size={18} /><span>{item.label}</span>{item.label === 'Automações' && <span className="nav-dot" />}</button>; })}</div>)}
         </nav>
-        <div className="sidebar-bottom"><div className="help-card"><div className="help-icon"><CircleHelp size={18} /></div><strong>Precisa de ajuda?</strong><span>Explore os recursos da plataforma.</span><button onClick={() => setActive('Integrações')}>Central de ajuda <ArrowUpRight size={14} /></button></div><div className="profile-row"><div className="profile-avatar">M</div><div className="profile-info"><strong>{userEmail ? userEmail.split('@')[0] : 'Administrador'}</strong><small>{userEmail ?? 'Workspace proprietário'}</small></div><button className="icon-button" title="Sair" onClick={signOut}><LogOut size={16} /></button></div></div>
+        <div className="sidebar-bottom"><button className="sidebar-help-compact" onClick={() => setActive('Tutorial')}><CircleHelp size={15}/> Ajuda e tutoriais <ArrowUpRight size={13}/></button><div className="profile-row"><div className="profile-avatar">M</div><div className="profile-info"><strong>{userEmail ? userEmail.split('@')[0] : 'Administrador'}</strong><small>{userEmail ?? 'Workspace proprietário'}</small></div><button className="icon-button" title="Sair" onClick={signOut}><LogOut size={16} /></button></div></div>
       </aside>
       <main className="main-area">
-        <header className="topbar"><div className="topbar-left"><button className="icon-button menu-toggle" onClick={() => setMobileOpen(true)}><Menu /></button><div className="breadcrumb">AutoViral AI <span>/</span> <strong>{active}</strong></div></div><div className="topbar-actions"><div className="search-box"><Search size={16} /><input placeholder="Buscar recursos..." /><kbd>⌘ K</kbd></div><button className="icon-button notification-button"><Bell size={18} /><i /></button><div className="top-avatar">M</div></div></header>
+        <header className="topbar"><div className="topbar-left"><button className="icon-button menu-toggle" onClick={() => setMobileOpen(true)}><Menu /></button><div className="breadcrumb">AutoViral AI <span>/</span> <strong>{active}</strong></div></div><div className="topbar-actions"><button className="icon-button" title="Alternar tema claro/escuro" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? <Sun size={17}/> : <Moon size={17}/>}</button><div className="search-box"><Search size={16} /><input placeholder="Buscar recursos..." /><kbd>⌘ K</kbd></div><button className="icon-button notification-button"><Bell size={18} /><i /></button><div className="top-avatar">M</div></div></header>
         <div className="page-content">
-          {active !== 'Visão geral' && active !== 'Produtos' && active !== 'Campanhas' && active !== 'Grupos e oportunidades' ? (
+          {active === 'Posts' ? <PostsPage workspaceId={workspaceId} /> : active !== 'Visão geral' && active !== 'Produtos' && active !== 'Campanhas' && active !== 'Grupos e oportunidades' ? (
             <WorkspaceSection active={active} onNavigate={setActive} />
           ) : active === 'Produtos' ? (
             <ProductsPage
