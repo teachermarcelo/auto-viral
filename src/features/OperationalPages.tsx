@@ -5,7 +5,7 @@ import './operational-pages.css';
 
 type ProductOption = { id: string; name: string };
 type Campaign = {
-  id: string; name: string; product_id: string | null; objective: string; status: string;
+  id: string; name: string; product_id: string | null; objective: string; status: string; channel: string;
   copy_text: string | null; destination_url: string | null; image_url: string | null; video_url: string | null;
   posting_interval_seconds: number; pause_after_posts: number; pause_duration_minutes: number;
 };
