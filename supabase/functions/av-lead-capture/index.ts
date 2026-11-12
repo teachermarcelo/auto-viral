@@ -35,6 +35,14 @@ Deno.serve(async (req: Request) => {
   }
 
   if (req.method === "GET") {
+    const ua = req.headers.get("user-agent") ?? "";
+    const device = /mobile|android|iphone/i.test(ua) ? "mobile" : /tablet|ipad/i.test(ua) ? "tablet" : "desktop";
+    let referrerHost: string | null = null;
+    try { const ref = req.headers.get("referer"); referrerHost = ref ? new URL(ref).hostname : null; } catch { /* ignore */ }
+    await admin.from("av_tracking_events").insert({
+      workspace_id: link.workspace_id, tracking_link_id: link.id, event_type: "click",
+      referrer_host: referrerHost, device_type: device,
+    });
     const title = link.label || "Receba mais informações";
     const body = `<h1>${escapeHtml(title)}</h1><p class="muted">Preencha os dados abaixo para continuar. Os campos de contato são usados somente para responder à sua solicitação.</p>
     <form method="POST" action="${escapeHtml(req.url)}">
@@ -75,6 +83,12 @@ Deno.serve(async (req: Request) => {
   });
   if (insertError) return page("Erro ao enviar", "<h1>Não foi possível registrar sua solicitação.</h1><p class='muted'>Tente novamente em instantes.</p>", 500);
 
+  await admin.from("av_tracking_events").insert({
+    workspace_id: link.workspace_id,
+    tracking_link_id: link.id,
+    event_type: "lead",
+    city: city || null,
+  });
   destination.searchParams.set("utm_source", "autoviral");
   destination.searchParams.set("utm_medium", "lead_form");
   if (link.campaign_id) destination.searchParams.set("utm_campaign", link.campaign_id);
