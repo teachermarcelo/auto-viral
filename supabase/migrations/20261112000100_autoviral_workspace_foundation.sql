@@ -47,8 +47,26 @@ as $$
   );
 $$;
 
+create or replace function public.av_is_workspace_admin(target_workspace uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $
+  select exists (
+    select 1
+    from public.av_workspace_members m
+    where m.workspace_id = target_workspace
+      and m.user_id = (select auth.uid())
+      and m.role in ('owner', 'admin')
+  );
+$;
+
 revoke all on function public.av_is_workspace_member(uuid) from public;
+revoke all on function public.av_is_workspace_admin(uuid) from public;
 grant execute on function public.av_is_workspace_member(uuid) to authenticated;
+grant execute on function public.av_is_workspace_admin(uuid) to authenticated;
 
 alter table public.av_profiles enable row level security;
 alter table public.av_workspaces enable row level security;
@@ -73,10 +91,7 @@ create policy "av_workspaces_insert_owner" on public.av_workspaces
 drop policy if exists "av_workspaces_update_admin" on public.av_workspaces;
 create policy "av_workspaces_update_admin" on public.av_workspaces
   for update to authenticated using (
-    owner_id = (select auth.uid()) or exists (
-      select 1 from public.av_workspace_members m
-      where m.workspace_id = id and m.user_id = (select auth.uid()) and m.role in ('owner','admin')
-    )
+    owner_id = (select auth.uid()) or public.av_is_workspace_admin(id)
   ) with check (
     owner_id = (select auth.uid()) or exists (
       select 1 from public.av_workspace_members m
@@ -100,23 +115,14 @@ create policy "av_members_insert_owner_self" on public.av_workspace_members
 drop policy if exists "av_members_update_admin" on public.av_workspace_members;
 create policy "av_members_update_admin" on public.av_workspace_members
   for update to authenticated using (
-    exists (
-      select 1 from public.av_workspace_members m
-      where m.workspace_id = workspace_id and m.user_id = (select auth.uid()) and m.role = 'owner'
-    )
+    public.av_is_workspace_admin(workspace_id)
   ) with check (
-    exists (
-      select 1 from public.av_workspace_members m
-      where m.workspace_id = workspace_id and m.user_id = (select auth.uid()) and m.role = 'owner'
-    )
+    public.av_is_workspace_admin(workspace_id)
   );
 drop policy if exists "av_members_delete_owner" on public.av_workspace_members;
 create policy "av_members_delete_owner" on public.av_workspace_members
   for delete to authenticated using (
-    exists (
-      select 1 from public.av_workspace_members m
-      where m.workspace_id = workspace_id and m.user_id = (select auth.uid()) and m.role = 'owner'
-    )
+    public.av_is_workspace_admin(workspace_id)
   );
 
 -- Create profile rows for new signups. Existing auth users can create their own profile on first sign-in.
