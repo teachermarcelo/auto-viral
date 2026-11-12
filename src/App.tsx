@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Activity, ArrowUpRight, BarChart3, Bell, Bot, BrainCircuit,
+  Activity, ArrowUpRight, BarChart3, Bell, Bot, BrainCircuit, Megaphone,
   ChevronDown, CircleHelp, Command, Compass, ContactRound, FileImage, Globe2,
   LayoutDashboard, Link2, LogOut, Menu, Package, Plus,
   Search, Settings2, ShieldCheck, Sparkles, Target, Users, WandSparkles, X, Pencil, Trash2, RefreshCw,
 } from 'lucide-react';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
+import { CampaignsPage, CommunitiesPage } from './features/OperationalPages';
 
-type Section = 'Visão geral' | 'Produtos' | 'Inteligência de mercado' | 'Radar de audiência' | 'Central de tráfego' | 'Estúdio criativo' | 'CRM e vendas' | 'Funis e páginas' | 'Automações' | 'Analytics' | 'Integrações';
+type Section = 'Visão geral' | 'Produtos' | 'Campanhas' | 'Grupos e oportunidades' | 'Inteligência de mercado' | 'Radar de audiência' | 'Central de tráfego' | 'Estúdio criativo' | 'CRM e vendas' | 'Funis e páginas' | 'Automações' | 'Analytics' | 'Integrações';
 type Product = {
   id: string;
   name: string;
@@ -37,6 +38,8 @@ const blankProduct: ProductForm = {
 const sections: { label: Section; icon: typeof LayoutDashboard; group: string }[] = [
   { label: 'Visão geral', icon: LayoutDashboard, group: 'WORKSPACE' },
   { label: 'Produtos', icon: Package, group: 'ESTRATÉGIA' },
+  { label: 'Campanhas', icon: Megaphone, group: 'CRESCIMENTO' },
+  { label: 'Grupos e oportunidades', icon: Users, group: 'ESTRATÉGIA' },
   { label: 'Inteligência de mercado', icon: BrainCircuit, group: 'ESTRATÉGIA' },
   { label: 'Radar de audiência', icon: Compass, group: 'ESTRATÉGIA' },
   { label: 'Central de tráfego', icon: Globe2, group: 'CRESCIMENTO' },
@@ -273,7 +276,7 @@ function App() {
               onChange={setProductForm} onSave={saveProduct} onClose={() => setFormOpen(false)}
               onRefresh={() => void loadProducts()}
             />
-          ) : <>
+          ) : active === 'Campanhas' ? <CampaignsPage workspaceId={workspaceId} /> : active === 'Grupos e oportunidades' ? <CommunitiesPage workspaceId={workspaceId} /> : <>
             <section className="welcome-row"><div><div className="eyebrow"><span className="live-dot" /> WORKSPACE EM CONFIGURAÇÃO</div><h1>{active === 'Visão geral' ? 'Seu crescimento começa aqui.' : active}</h1><p>{active === 'Visão geral' ? 'Uma visão unificada da sua operação de tráfego, audiência e vendas.' : 'Organize sua operação e prepare o próximo passo do crescimento orgânico.'}</p></div><button className="primary-button" onClick={() => setActive('Produtos')}><Plus size={17} /> Novo projeto</button></section>
             <section className="setup-banner"><div className="banner-icon"><Sparkles size={21} /></div><div className="banner-copy"><strong>Bem-vindo ao AutoViral AI</strong><span>Seu ambiente visual está pronto. Conecte as fontes de dados para ativar métricas reais e recursos operacionais.</span></div><span className="setup-status">CONFIGURAÇÃO INICIAL</span></section>
             <section className="metric-grid">{metrics.map((m) => { const Icon = m.icon; return <article className="metric-card" key={m.label}><div className="metric-head"><span>{m.label}</span><span className={`metric-icon ${m.tone}`}><Icon size={18} /></span></div><strong className="metric-value">{m.value}</strong><div className="metric-foot"><span className="muted-dot" />{m.change}</div></article>; })}</section>
