@@ -9,7 +9,7 @@
   const state=await chrome.storage.local.get({[KEY]:[]}),rows=Array.isArray(state[KEY])?state[KEY]:[],map=new Map(rows.map(x=>[x.url,x]));let added=0;for(const row of found)if(!map.has(row.url)){map.set(row.url,row);added++;}
   await chrome.storage.local.set({[KEY]:Array.from(map.values()).slice(-1500),[META]:{lastScanAt:new Date().toISOString(),pageUrl:location.href,total:map.size,lastAdded:added,paused:false}});
   }catch(e){console.warn("[AutoViral Mapper]",e);}finally{busy=false;}}
-  function schedule(){if(timer)clearTimeout(timer);timer=setTimeout(scan,650);}
+  function schedule(){if(timer)return;timer=setTimeout(()=>{timer=null;void scan();},500);}
   chrome.storage.onChanged.addListener((c,a)=>{if(a==="local"&&c.autoViralMapperPaused){paused=Boolean(c.autoViralMapperPaused.newValue);if(!paused)schedule();}});
   chrome.storage.local.get({autoViralMapperPaused:false}).then(s=>{paused=Boolean(s.autoViralMapperPaused);if(!paused)schedule();});
   addEventListener("scroll",schedule,{passive:true});addEventListener("popstate",schedule);addEventListener("pageshow",schedule);
