@@ -18,7 +18,7 @@ Foram encontrados três projetos:
 - Projeto pessoal inativo — a leitura do catálogo de tabelas retornou erro de disponibilidade; não foi possível auditar o schema.
 - ingles-para-nacoes — ACTIVE_HEALTHY, região sa-east-1, com muitas tabelas de aplicações distintas. Não é recomendado reutilizá-lo para o AutoViral sem confirmação explícita.
 
-O projeto fluent-immersion é o candidato tecnicamente mais próximo por já conter objetos vsa/autoviral, mas o nome e os demais objetos indicam que é compartilhado com outros produtos. A migração av_workspace_* está preparada no repositório e NÃO foi aplicada ao banco. A conexão de produção precisa de confirmação explícita do destino antes de qualquer alteração remota.
+O projeto fluent-immersion é o candidato tecnicamente mais próximo por já conter objetos vsa/autoviral, mas o nome e os demais objetos indicam que é compartilhado com outros produtos. O usuário autorizou reutilizar fluent-immersion desde que as tabelas do AutoViral fossem separadas. A migração foi aplicada com sucesso em 2026-11-12. Foram criadas apenas tabelas av_* dedicadas, sem alterar as tabelas VSA/TIC existentes.
 
 ## Segurança identificada no projeto fluent-immersion
 
@@ -36,7 +36,12 @@ Esses alertas pertencem ao projeto compartilhado existente e não foram alterado
 - Supabase Auth por e-mail/senha quando as variáveis de ambiente estão configuradas.
 - Sem dados fictícios nos indicadores: exibem estado vazio até haver eventos reais.
 - .env ignorado pelo Git; .env.example contém apenas placeholders.
-- Migração multi-workspace preparada com RLS e memberships, pendente de revisão/aplicação no projeto de destino.
+- Migração aplicada: av_profiles, av_workspaces, av_workspace_members, av_products, av_campaigns, av_integrations e av_activity_events.
+- Todas as sete tabelas av_* foram verificadas com RLS habilitado.
+- Helpers de membership estão no schema private, não exposto ao Data API, com SECURITY DEFINER e search_path vazio; privilégios de execução restritos.
+- Migração adicional restringe administração de membros a owners.
+- O Auth trigger cria perfil av_profiles para novos usuários; perfis dos usuários existentes foram backfilled.
+- A aplicação cria um workspace padrão no primeiro login e registra o usuário como owner.
 
 ## Limitações e próximos passos
 
@@ -45,3 +50,12 @@ Esses alertas pertencem ao projeto compartilhado existente e não foram alterado
 - Configurar GitHub Actions para validar TypeScript/build.
 - Confirmar o Supabase de destino e então aplicar a migração revisada, validar RLS e testar isolamento entre dois usuários.
 - Depois ligar dashboard a consultas reais, sem misturar tabelas de outros produtos.
+
+## Validação da migração no Supabase
+
+- Projeto alvo: fluent-immersion (nuyzvpkvawixidotuuio), região us-west-2.
+- Migrações aplicadas: autoviral_phase1_workspace_foundation e restrict_workspace_membership_owner.
+- Consulta pós-migração confirmou as sete tabelas av_* com RLS habilitado.
+- Advisor pós-migração manteve os mesmos alertas anteriores em objetos legados VSA/Fluent Immersion; nenhum alerta novo de tabela av_* foi reportado.
+- A execução do CI falhou inicialmente porque setup-node com cache npm exige lockfile ausente. Workflow ajustado para não exigir cache; build será reexecutado.
+- Não foi executado teste real de isolamento com duas contas de usuário; esse teste ainda é necessário antes de produção.
