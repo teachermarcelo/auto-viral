@@ -1,0 +1,30 @@
+name: Package AutoViral Chrome Extension
+
+on:
+  push:
+    branches:
+      - feat/platform-migration-chrome-extension
+    paths:
+      - "chrome-extension/**"
+      - ".github/workflows/package-chrome-extension.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate extension manifest
+        run: node -e "JSON.parse(require('fs').readFileSync('chrome-extension/manifest.json','utf8'))"
+      - name: Package extension
+        run: cd chrome-extension && zip -r ../autoviral-chrome-extension.zip .
+      - name: Upload extension ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: autoviral-chrome-extension
+          path: autoviral-chrome-extension.zip
+          if-no-files-found: error
+          retention-days: 30
