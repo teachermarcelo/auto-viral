@@ -90,11 +90,11 @@ function App() {
       if (membershipError) throw membershipError;
 
       const membership = memberships?.[0] as
-        | { workspace_id: string; av_workspaces: { id: string; name: string } | null }
+        | { workspace_id: string; av_workspaces: { id: string; name: string }[] | null }
         | undefined;
 
       if (membership?.workspace_id) {
-        const workspace = membership.av_workspaces;
+        const workspace = membership.av_workspaces?.[0] ?? null;
         if (!workspace) {
           const { data, error } = await supabase
             .from('av_workspaces').select('id,name').eq('id', membership.workspace_id).single();
