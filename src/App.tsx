@@ -66,6 +66,8 @@ function App() {
   const [authMessage, setAuthMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
+  const [workspaceLoading, setWorkspaceLoading] = useState(false);
+  const [workspaceError, setWorkspaceError] = useState('');
   const [products, setProducts] = useState<Product[]>([]);
   const [productsLoading, setProductsLoading] = useState(false);
   const [productsError, setProductsError] = useState('');
@@ -75,26 +77,55 @@ function App() {
   const [productForm, setProductForm] = useState<ProductForm>(blankProduct);
   const [savingProduct, setSavingProduct] = useState(false);
 
-  async function loadOrCreateWorkspace(userId: string) {
+  async function loadOrCreateWorkspace(_userId: string) {
     if (!supabase) return;
-    const { data: membership, error: membershipError } = await supabase
-      .from('av_workspace_members').select('workspace_id').eq('user_id', userId).limit(1).maybeSingle();
-    if (membershipError) { console.error('Falha ao consultar workspace:', membershipError.message); return; }
-    if (membership?.workspace_id) {
-      const { data: workspace } = await supabase.from('av_workspaces').select('id,name').eq('id', membership.workspace_id).single();
-      if (workspace?.name) setWorkspaceName(workspace.name);
-      if (workspace?.id) setWorkspaceId(workspace.id);
-      return;
+    setWorkspaceError('');
+    setWorkspaceLoading(true);
+    try {
+      const { data: memberships, error: membershipError } = await supabase
+        .from('av_workspace_members')
+        .select('workspace_id, av_workspaces(id,name)')
+        .order('created_at', { ascending: true })
+        .limit(1);
+      if (membershipError) throw membershipError;
+
+      const membership = memberships?.[0] as
+        | { workspace_id: string; av_workspaces: { id: string; name: string } | null }
+        | undefined;
+
+      if (membership?.workspace_id) {
+        const workspace = membership.av_workspaces;
+        if (!workspace) {
+          const { data, error } = await supabase
+            .from('av_workspaces').select('id,name').eq('id', membership.workspace_id).single();
+          if (error) throw error;
+          setWorkspaceName(data.name);
+          setWorkspaceId(data.id);
+        } else {
+          setWorkspaceName(workspace.name);
+          setWorkspaceId(workspace.id);
+        }
+        return;
+      }
+
+      const { data: newWorkspaceId, error: createError } = await supabase
+        .rpc('av_create_workspace', { p_name: 'Meu workspace' });
+      if (createError) throw createError;
+      if (!newWorkspaceId) throw new Error('A criação do workspace não retornou um identificador.');
+
+      const { data: createdWorkspace, error: fetchError } = await supabase
+        .from('av_workspaces').select('id,name').eq('id', newWorkspaceId).single();
+      if (fetchError) throw fetchError;
+      setWorkspaceName(createdWorkspace.name);
+      setWorkspaceId(createdWorkspace.id);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erro desconhecido';
+      console.error('Falha ao preparar workspace:', message);
+      setWorkspaceError(`Não foi possível preparar seu workspace: ${message}`);
+      setWorkspaceId(null);
+    } finally {
+      setWorkspaceLoading(false);
     }
-    const suffix = crypto.randomUUID().replaceAll('-', '').slice(0, 10);
-    const { data: workspace, error: workspaceError } = await supabase
-      .from('av_workspaces').insert({ name: 'Meu workspace', slug: `av-${suffix}`, owner_id: userId })
-      .select('id,name').single();
-    if (workspaceError || !workspace) { console.error('Falha ao criar workspace:', workspaceError?.message); return; }
-    const { error: memberError } = await supabase.from('av_workspace_members').insert({ workspace_id: workspace.id, user_id: userId, role: 'owner' });
-    if (memberError) { console.error('Falha ao registrar proprietário do workspace:', memberError.message); return; }
-    setWorkspaceName(workspace.name);
-    setWorkspaceId(workspace.id);
   }
 
   async function loadProducts(targetWorkspaceId = workspaceId) {
@@ -220,6 +251,8 @@ function App() {
 
   return (
     <div className="app-shell">
+      {workspaceError && <div role="alert" className="product-feedback error">{workspaceError} Atualize a página ou verifique a configuração do banco de dados.</div>}
+      {workspaceLoading && <div role="status" className="product-feedback">Preparando seu workspace…</div>}
       {mobileOpen && <button className="mobile-scrim" aria-label="Fechar menu" onClick={() => setMobileOpen(false)} />}
       <aside className={`sidebar ${mobileOpen ? 'open' : ''}`}>
         <div className="sidebar-top"><Brand /><button className="icon-button mobile-close" onClick={() => setMobileOpen(false)}><X /></button></div>
