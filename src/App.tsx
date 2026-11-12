@@ -3,7 +3,7 @@ import {
   Activity, ArrowUpRight, BarChart3, Bell, Bot, BrainCircuit,
   ChevronDown, CircleHelp, Command, Compass, ContactRound, FileImage, Globe2,
   LayoutDashboard, Link2, LogOut, Menu, Package, Plus,
-  Search, Settings2, ShieldCheck, Sparkles, Target, Users, WandSparkles, X, Pencil, Trash2, Archive, RefreshCw,
+  Search, Settings2, ShieldCheck, Sparkles, Target, Users, WandSparkles, X, Pencil, Trash2, RefreshCw,
 } from 'lucide-react';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 
