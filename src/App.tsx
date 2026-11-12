@@ -18,6 +18,7 @@ type Product = {
   price: number | null;
   currency: string;
   checkout_url: string | null;
+  image_url: string | null;
   status: 'draft' | 'active' | 'archived';
   created_at: string;
 };
@@ -29,11 +30,12 @@ type ProductForm = {
   price: string;
   currency: string;
   checkout_url: string;
+  image_url: string;
   status: Product['status'];
 };
 const blankProduct: ProductForm = {
   name: '', description: '', product_type: 'digital', niche: '',
-  price: '', currency: 'BRL', checkout_url: '', status: 'draft',
+  price: '', currency: 'BRL', checkout_url: '', image_url: '', status: 'draft',
 };
 const sections: { label: Section; icon: typeof LayoutDashboard; group: string }[] = [
   { label: 'Visão geral', icon: LayoutDashboard, group: 'WORKSPACE' },
@@ -136,7 +138,7 @@ function App() {
     setProductsLoading(true);
     setProductsError('');
     const { data, error } = await supabase.from('av_products')
-      .select('id,name,description,product_type,niche,price,currency,checkout_url,status,created_at')
+      .select('id,name,description,product_type,niche,price,currency,checkout_url,image_url,status,created_at')
       .eq('workspace_id', targetWorkspaceId).order('created_at', { ascending: false });
     if (error) setProductsError(`Não foi possível carregar os produtos: ${error.message}`);
     else setProducts((data ?? []) as Product[]);
@@ -154,7 +156,7 @@ function App() {
     setProductForm({
       name: product.name, description: product.description ?? '', product_type: product.product_type,
       niche: product.niche ?? '', price: product.price == null ? '' : String(product.price),
-      currency: product.currency || 'BRL', checkout_url: product.checkout_url ?? '', status: product.status,
+      currency: product.currency || 'BRL', checkout_url: product.checkout_url ?? '', image_url: product.image_url ?? '', status: product.status,
     });
     setProductMessage('');
     setFormOpen(true);
@@ -178,7 +180,7 @@ function App() {
       name: productForm.name.trim(), description: productForm.description.trim() || null,
       product_type: productForm.product_type, niche: productForm.niche.trim() || null,
       price: parsedPrice, currency: productForm.currency.toUpperCase(),
-      checkout_url: productForm.checkout_url.trim() || null, status: productForm.status,
+      checkout_url: productForm.checkout_url.trim() || null, image_url: productForm.image_url.trim() || null, status: productForm.status,
     };
     const query = editingProductId
       ? supabase.from('av_products').update(payload).eq('id', editingProductId).eq('workspace_id', workspaceId)
@@ -308,7 +310,7 @@ function ProductsPage(props: {
       <div className="panel-heading"><div><span className="panel-kicker">CATÁLOGO</span><h2>Produtos cadastrados <small className="count-pill">{products.length}</small></h2></div><button className="subtle-button" onClick={onRefresh}><RefreshCw size={14}/> Atualizar</button></div>
       {loading ? <div className="product-empty"><RefreshCw className="spin" size={22}/><strong>Carregando produtos…</strong></div> :
         products.length === 0 ? <div className="product-empty"><div className="chart-empty-icon"><Package size={22}/></div><strong>Nenhum produto cadastrado</strong><span>Comece adicionando seu primeiro produto ao catálogo.</span><button className="primary-button" onClick={onNew}><Plus size={16}/> Cadastrar produto</button></div> :
-        <div className="product-list">{products.map(product => <article className="product-row" key={product.id}><div className="product-symbol"><Package size={20}/></div><div className="product-main"><strong>{product.name}</strong><span>{product.niche || 'Nicho não definido'} · {product.product_type === 'digital' ? 'Digital' : product.product_type === 'physical' ? 'Físico' : product.product_type === 'service' ? 'Serviço' : 'Afiliado'}</span>{product.description && <small>{product.description}</small>}</div><div className="product-price">{currency(product.price, product.currency)}</div><span className={`product-status ${product.status}`}>{product.status === 'active' ? 'Ativo' : product.status === 'archived' ? 'Arquivado' : 'Rascunho'}</span><div className="product-actions"><button className="icon-button" title="Editar" onClick={() => onEdit(product)}><Pencil size={15}/></button><button className="icon-button danger-button" title="Excluir" onClick={() => onDelete(product)}><Trash2 size={15}/></button></div></article>)}</div>}
+        <div className="product-list">{products.map(product => <article className="product-row" key={product.id}><div className="product-symbol">{product.image_url ? <img src={product.image_url} alt={`Imagem de ${product.name}`} /> : <Package size={20}/>}</div><div className="product-main"><strong>{product.name}</strong><span>{product.niche || 'Nicho não definido'} · {product.product_type === 'digital' ? 'Digital' : product.product_type === 'physical' ? 'Físico' : product.product_type === 'service' ? 'Serviço' : 'Afiliado'}</span>{product.description && <small>{product.description}</small>}</div><div className="product-price">{currency(product.price, product.currency)}</div><span className={`product-status ${product.status}`}>{product.status === 'active' ? 'Ativo' : product.status === 'archived' ? 'Arquivado' : 'Rascunho'}</span><div className="product-actions"><button className="icon-button" title="Editar" onClick={() => onEdit(product)}><Pencil size={15}/></button><button className="icon-button danger-button" title="Excluir" onClick={() => onDelete(product)}><Trash2 size={15}/></button></div></article>)}</div>}
     </section>
     {formOpen && <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}><section className="product-modal" role="dialog" aria-modal="true" aria-labelledby="product-modal-title"><div className="modal-heading"><div><span className="panel-kicker">PRODUCT CENTER</span><h2 id="product-modal-title">{props.form.name && products.some(p => p.name === props.form.name) ? 'Editar produto' : 'Novo produto'}</h2></div><button className="icon-button" onClick={onClose}><X/></button></div>
       <form className="product-form" onSubmit={onSave}>
@@ -318,6 +320,8 @@ function ProductsPage(props: {
         <label>Descrição<textarea rows={3} maxLength={3000} value={form.description} onChange={e => onChange({...form,description:e.target.value})} placeholder="Descreva a oferta e seus diferenciais"/></label>
         <div className="form-two"><label>Preço<input inputMode="decimal" value={form.price} onChange={e => onChange({...form,price:e.target.value})} placeholder="0,00"/></label><label>Moeda<select value={form.currency} onChange={e => onChange({...form,currency:e.target.value})}><option value="BRL">BRL — Real</option><option value="USD">USD — Dólar</option><option value="EUR">EUR — Euro</option></select></label></div>
         <label>Link de checkout<input type="url" value={form.checkout_url} onChange={e => onChange({...form,checkout_url:e.target.value})} placeholder="https://…"/></label>
+        <label>Imagem do produto (URL)<input type="url" value={form.image_url} onChange={e => onChange({...form,image_url:e.target.value})} placeholder="https://.../imagem-do-produto.jpg"/><small>Adicione o endereço público da imagem. A prévia aparece no catálogo.</small></label>
+        {form.image_url.trim() && <div className="product-image-preview"><img src={form.image_url} alt="Prévia da imagem do produto" onError={e => { e.currentTarget.style.display = 'none'; }} /></div>}
         {message && <p className="product-feedback error">{message}</p>}
         <div className="modal-actions"><button type="button" className="subtle-button" onClick={onClose}>Cancelar</button><button className="primary-button" disabled={saving}>{saving ? 'Salvando…' : 'Salvar produto'}</button></div>
       </form></section></div>}
