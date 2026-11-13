@@ -49,8 +49,24 @@ Deno.serve(async (req: Request) => {
     || (products || []).find((p: any) => {
       try { return checkoutCode && new URL(p.checkout_url).pathname.slice(1) === checkoutCode; } catch { return false; }
     }) || null;
+  const tracking = obj(body.TrackingParameters || body.tracking_parameters);
+  const utmCampaign = String(tracking.utm_campaign || "").trim();
+  const utmContent = String(tracking.utm_content || "").trim();
+  let trackingLink: any = null;
+  if (utmContent) {
+    const { data } = await admin.from("av_tracking_links").select("id,campaign_id").eq("workspace_id", secret.workspace_id).eq("code", utmContent).maybeSingle();
+    trackingLink = data;
+  }
   let campaign: any = null;
-  if (product) {
+  if (utmCampaign) {
+    const { data } = await admin.from("av_campaigns").select("id").eq("workspace_id", secret.workspace_id).eq("id", utmCampaign).maybeSingle();
+    campaign = data;
+  }
+  if (!campaign && trackingLink?.campaign_id) {
+    const { data } = await admin.from("av_campaigns").select("id").eq("workspace_id", secret.workspace_id).eq("id", trackingLink.campaign_id).maybeSingle();
+    campaign = data;
+  }
+  if (!campaign && product) {
     const { data } = await admin.from("av_campaigns").select("id").eq("workspace_id", secret.workspace_id).eq("product_id", product.id).order("created_at", { ascending: false }).limit(1).maybeSingle();
     campaign = data;
   }
@@ -66,10 +82,14 @@ Deno.serve(async (req: Request) => {
     product_name: productName.slice(0, 180) || null,
     product_external_id: productExternalId.slice(0, 120) || null,
     checkout_link: String(pick(body.checkout_link, body.checkoutLink) || "").slice(0, 180) || null,
-    event: String(pick(body.event, body.type) || "").slice(0, 80) || null
+    event: String(pick(body.webhook_event_type, body.event, body.type) || "").slice(0, 80) || null,
+    utm_source: String(tracking.utm_source || "").slice(0, 80) || null,
+    utm_medium: String(tracking.utm_medium || "").slice(0, 80) || null,
+    utm_campaign: utmCampaign.slice(0, 80) || null,
+    utm_content: utmContent.slice(0, 80) || null
   };
   const { data: sale, error: saleError } = await admin.from("av_sales").upsert({
-    workspace_id: secret.workspace_id, product_id: product?.id || null, campaign_id: campaign?.id || null,
+    workspace_id: secret.workspace_id, product_id: product?.id || null, campaign_id: campaign?.id || null, tracking_link_id: trackingLink?.id || null,
     provider: "kiwify", provider_order_id: orderId, order_status: orderStatus, amount: total,
     currency, payment_method: paymentMethod, paid_at: paidAt, metadata
   }, { onConflict: "provider,provider_order_id" }).select("id,order_status,product_id").single();
