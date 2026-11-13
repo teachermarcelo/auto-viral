@@ -245,8 +245,9 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
     const runResult=await supabase.from('av_campaign_runs').insert({workspace_id:workspaceId,campaign_id:campaign.id,name:'Fila '+new Date().toLocaleString('pt-BR'),status:'queued',total_groups:targets.length,total_tasks:targets.length*count}).select('id').single();
     if(runResult.error){setMessage('Não foi possível criar a execução: '+runResult.error.message);generatingRunRef.current=false;setGeneratingRun(false);return;}
     const runId=runResult.data.id;
+    let next=start.getTime(),taskIndex=0;
+    const totalPlanned=destinations.length*count;
     for(const community of destinations){
-      let next=start.getTime();
       for(let i=0;i<count;i++){
         let trackingLinkId:string|null=null,trackingCode:string|null=null;
         if(community&&campaign.destination_url){
@@ -259,7 +260,8 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
           trackingLinkId=data.id;trackingCode=data.code;
         }
         tasks.push({workspace_id:workspaceId,campaign_id:campaign.id,campaign_run_id:runId,community_id:community?.id||null,tracking_link_id:trackingLinkId,channel:campaign.channel,scheduled_at:new Date(next).toISOString(),status:'scheduled',copy_snapshot:campaign.copy_text,media_url:campaign.image_url||campaign.video_url,destination_url:trackingCode?CLICK_URL+trackingCode:campaign.destination_url});
-        next+=interval;if(pauseEvery>0&&(i+1)%pauseEvery===0&&i+1<count)next+=pauseMs;
+        taskIndex++;next+=interval;
+        if(pauseEvery>0&&pauseMs>0&&taskIndex%pauseEvery===0&&taskIndex<totalPlanned)next+=pauseMs;
       }
     }
     const {error}=await supabase.from('av_campaign_posts').insert(tasks);
