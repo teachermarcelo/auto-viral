@@ -1,41 +1,42 @@
-# AutoViral AI — Mapeador de Grupos (0.3.0)
+# AutoViral AI — Mapeador de Grupos (0.4.1)
 
-Extensão Chrome Manifest V3 que identifica URLs de grupos do Facebook presentes nos resultados carregados pelo usuário e sincroniza os grupos selecionados diretamente com `av_communities` no workspace autenticado.
+Extensão Chrome Manifest V3 que identifica URLs de grupos públicos exibidos nos resultados carregados pelo próprio usuário e sincroniza os registros com `av_communities` no workspace autenticado.
 
 ## Instalação / atualização
 
-1. Abra `chrome://extensions`.
-2. Ative **Modo do desenvolvedor**.
-3. Clique em **Atualizar** na extensão ou remova a versão antiga e use **Carregar sem compactação** apontando para esta pasta.
-4. Fixe o ícone AutoViral na barra do Chrome.
+1. Baixe o artefato ZIP **autoviral-chrome-extension** na execução mais recente do workflow **Package AutoViral Chrome Extension** do repositório.
+2. Extraia o ZIP em uma pasta local permanente.
+3. Abra `chrome://extensions` no Chrome.
+4. Ative **Modo do desenvolvedor**.
+5. Se já houver uma versão antiga, remova-a. Clique em **Carregar sem compactação** e selecione a pasta extraída que contém `manifest.json`.
+6. Fixe o ícone AutoViral na barra do Chrome.
 
-## Uso
+## Primeiro uso
 
-1. Abra o Facebook e faça uma pesquisa de grupos.
-2. Deixe a página aberta e role os resultados normalmente.
-3. O content script observa rolagem, alterações do DOM e navegação interna; links novos entram na fila local automaticamente.
-4. Abra o popup para acompanhar os contadores, pausar/retomar ou solicitar uma leitura.
-5. Conecte usando o mesmo e-mail e senha da conta AutoViral.
-6. Clique em **Enviar grupos para a plataforma**. A extensão descobre o workspace da conta e grava os grupos em `av_communities`, respeitando RLS.
-7. Volte à plataforma e atualize **Grupos e oportunidades**.
+1. Abra o AutoViral em `https://teachermarcelo.github.io/auto-viral/` e entre na conta.
+2. Mantenha a extensão instalada. O arquivo `platform-bridge.js` identifica a sessão ativa do Supabase no domínio da plataforma e a compartilha diretamente com o service worker da extensão; não digite novamente a senha no popup.
+3. Abra o Facebook e pesquise grupos públicos relacionados ao seu nicho.
+4. Role os resultados normalmente para que a página carregue os links.
+5. Abra o popup para acompanhar a fila, pausar/retomar ou solicitar nova leitura.
+6. Os grupos capturados são sincronizados automaticamente para o workspace autenticado. Consulte **Grupos e oportunidades** na plataforma.
 
-## Comportamento e limites
+## Como funciona
 
-- Captura somente URLs de grupos presentes no DOM e visíveis na página carregada.
-- Continua enquanto o Chrome e a aba do Facebook estiverem abertos; após atualizar a página, o content script é reinjetado e a fila local permanece.
+- Captura somente links de grupos públicos que já aparecem no DOM visível da página carregada.
 - Deduplicação local por URL; fila limitada aos 1.500 registros mais recentes.
-- O envio ao banco só ocorre após clique explícito do usuário.
-- Usa Supabase Auth + chave publicável + JWT; não contém service-role key. RLS limita gravações ao workspace associado ao usuário.
-- A senha não é persistida; tokens de sessão são armazenados localmente para renovação. Desconectar remove a sessão local.
-- Não lê membros, perfis, mensagens, grupos privados ou dados não carregados/visíveis; não entra em grupos, não curte, comenta, publica ou envia mensagens.
-- Não funciona com Chrome fechado, computador desligado ou sessão encerrada.
-- Facebook pode alterar a estrutura da página, limitar resultados ou exigir ações adicionais. Não há garantia de mapear grupos que não tenham sido carregados na página.
+- A sincronização usa Supabase Auth, chave publicável e JWT do usuário; a extensão não contém chave service-role.
+- Os registros são gravados em `av_communities`, com status inicial `to_review`.
+- A sessão é renovada pelo Supabase quando necessário. Desconectar a extensão remove a sessão local.
+- A captura depende de o Chrome, a sessão e a aba estarem ativos; não executa quando o navegador está fechado.
 
-## Permissões
+## Limites e conformidade
 
-- `activeTab`, `scripting`, `storage`: leitura da aba ativa, solicitação de varredura e fila local.
-- `host_permissions`: páginas Facebook e endpoint Supabase para autenticação e sincronização.
+- Não coleta membros, perfis, mensagens ou dados de grupos privados.
+- Não entra em grupos, não curte, comenta, publica ou envia mensagens.
+- Não contorna controles, bloqueios, CAPTCHA ou limites do Facebook.
+- O mapeamento depende dos resultados que o próprio Facebook disponibiliza e carrega na página; não há garantia de capturar resultados que não foram exibidos.
+- Revise as regras de cada grupo antes de qualquer divulgação. A extensão não realiza disparos em massa.
 
-## Segurança e validação
+## Validação automatizada
 
-A extensão grava somente registros em `av_communities` e depende das políticas RLS existentes. Teste com uma conta real do workspace antes de distribuição. A captura é local até o usuário clicar no botão de envio.
+O workflow valida JSON do manifesto, existência de todos os arquivos referenciados, sintaxe JavaScript e criação do ZIP. Isso valida o pacote, mas não substitui um teste manual com a conta e o Chrome do usuário.
