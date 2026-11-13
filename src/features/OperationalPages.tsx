@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Copy, ExternalLink, Plus, RefreshCw, Users, Megaphone, CalendarClock, Upload, Trash2, FileText, MessageCircle } from 'lucide-react';
+import { Copy, ExternalLink, Plus, RefreshCw, Users, Megaphone, Upload, Trash2, FileText } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import './operational-pages.css';
 
@@ -16,7 +16,6 @@ type CommunityOption = { id:string; name:string; url:string; topic:string; statu
 
 const PROJECT_URL = 'https://nuyzvpkvawixidotuuio.supabase.co';
 const CLICK_URL = `${PROJECT_URL}/functions/v1/av-click?c=`;
-const LEAD_URL = `${PROJECT_URL}/functions/v1/av-lead-capture?c=`;
 const KIWIFY_WEBHOOK_URL = `${PROJECT_URL}/functions/v1/av-kiwify-webhook`;
 
 function validHttpUrl(value: string) {
@@ -345,9 +344,9 @@ export function AudiencesPage({workspaceId}:{workspaceId:string|null}){
   ]);
   if(a.error)setMessage('Erro ao carregar públicos: '+a.error.message);else setRows((a.data??[]) as AudienceRow[]);
   if(g.error)setMessage('Erro ao ler grupos: '+g.error.message);else{
-   const counts=new Map<string,number>();(g.data??[]).forEach((x:{topic:string|null})=>{const t=(x.topic||'Geral').trim();counts.set(t,(counts.get(t)||0)+1);});
-   setTopics([...counts.entries()].map(([topic,count])=>({topic,count})).sort((x,y)=>y.count-x.count));
-   if(!form.topic&&counts.size)setForm(v=>({...v,topic:[...counts.entries()].sort((x,y)=>y[1]-x[1])[0][0]}));
+   const counts=new Map<string,{count:number;approved:number}>();(g.data??[]).forEach((x:{topic:string|null;status:string})=>{const t=(x.topic||'Geral').trim();const v=counts.get(t)||{count:0,approved:0};v.count++;if(x.status==='approved')v.approved++;counts.set(t,v);});
+   setTopics([...counts.entries()].map(([topic,v])=>({topic,...v})).sort((x,y)=>y.count-x.count));
+   if(!form.topic&&counts.size)setForm(v=>({...v,topic:[...counts.entries()].sort((x,y)=>y[1].count-x[1].count)[0][0]}));
   }
   setLoading(false);
  },[workspaceId]);
