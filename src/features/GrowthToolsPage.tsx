@@ -14,6 +14,11 @@ const modules:Record<string,{title:string;intro:string;table:string;kind:string;
  'Central de tráfego':{title:'Central de tráfego',intro:'Organize peças sociais e destinos. Use os links rastreáveis criados em Campanhas para medir cliques.',table:'av_social_content',kind:'facebook',label:'Nome da publicação',placeholder:'Ex.: Divulgação do kit em página do Facebook',field:'caption'},
  'Automações':{title:'Regras e rotinas',intro:'Registre rotinas, aprovações e procedimentos. Ações externas só executam quando a integração oficial está autorizada.',table:'av_creative_assets',kind:'copy',label:'Nome da rotina',placeholder:'Ex.: Revisar campanhas toda segunda-feira',field:'content'},
  'Importar':{title:'Importação de comunidades',intro:'Importe uma lista CSV de URLs públicas de grupos que você tem autorização para revisar. A importação apenas cadastra para revisão; não entra em grupos nem publica.',table:'av_communities',kind:'csv',label:'Arquivo CSV',placeholder:'Cole uma URL por linha ou envie CSV',field:'notes'},
+ 'Pinterest':{title:'Central Pinterest',intro:'Organize ideias de Pins, descrições, palavras-chave e destinos rastreáveis. Publicação depende da conexão oficial da conta.',table:'av_social_content',kind:'pinterest',label:'Título do Pin',placeholder:'Ex.: Atividades de coordenação motora para Educação Infantil',field:'caption'},
+ 'Email marketing':{title:'Campanhas de e-mail',intro:'Prepare campanhas de e-mail. O envio real pelo Brevo exige API key e contatos com consentimento válido.',table:'av_email_campaigns',kind:'email',label:'Nome e assunto da campanha',placeholder:'Ex.: Conheça o Kit Psicopedagógico 360°',field:'html_content'},
+ 'WhatsApp X1':{title:'Central WhatsApp X1',intro:'Prepare abordagens individuais, scripts de diagnóstico e links wa.me. Envie somente mensagens esperadas e autorizadas pelo contato.',table:'av_creative_assets',kind:'copy',label:'Nome do roteiro',placeholder:'Ex.: Atendimento individual — dúvidas sobre o kit',field:'content'},
+ 'Robô por cidades':{title:'Prospecção por cidades',intro:'Organize cidades e estados prioritários. A ferramenta não coleta telefones pessoais nem dispara mensagens sem consentimento.',table:'av_city_targets',kind:'organic',label:'Cidade',placeholder:'Ex.: São Paulo',field:'notes'},
+ 'Relatórios IA':{title:'Relatórios estratégicos IA',intro:'Registre perguntas e relatórios. A geração com Gemini exige GEMINI_API_KEY configurada no Supabase.',table:'av_research_reports',kind:'ai_report',label:'Pergunta para o relatório',placeholder:'Ex.: Quais campanhas geraram mais leads qualificados?',field:'source_summary'},
 };
 export function GrowthToolsPage({active,workspaceId}:{active:string;workspaceId:string|null}){
  const config=modules[active]||modules['Estúdio criativo'];
@@ -41,7 +46,9 @@ export function GrowthToolsPage({active,workspaceId}:{active:string;workspaceId:
   setSaving(true);setMessage('');
   let payload:Row={workspace_id:workspaceId};
   if(config.table==='av_city_targets')payload={...payload,city:city.trim()||title.trim(),state_code:stateCode,audience:body.trim(),channel:platform,status:'planned',notes:body.trim()||null};
-  else if(config.table==='av_social_content')payload={...payload,platform:active==='YouTube'?'youtube':platform,content_type:active==='YouTube'?'video':'post',title:title.trim(),caption:body.trim(),status};
+  else if(config.table==='av_social_content')payload={...payload,platform:active==='YouTube'?'youtube':active==='Pinterest'?'pinterest':active==='WhatsApp X1'?'whatsapp':platform,content_type:active==='YouTube'?'video':active==='Pinterest'?'pin':'post',title:title.trim(),caption:body.trim(),status};
+  else if(config.table==='av_email_campaigns')payload={...payload,name:title.trim(),subject:title.trim(),html_content:body.trim(),status:'draft'};
+
   else if(config.table==='av_research_reports')payload={...payload,query:title.trim(),report_type:'pain_search',source_summary:body.trim(),content:{status:'manual_research_note'}};
   else payload={...payload,asset_type:active==='Comentador'?'copy':active==='Funis e páginas'?'copy':assetType,channel:active,title:title.trim(),content:body.trim(),status};
   const {error}=await supabase.from(config.table).insert(payload);
@@ -62,7 +69,7 @@ export function GrowthToolsPage({active,workspaceId}:{active:string;workspaceId:
   }
   setMessage('Importação concluída: '+added+' inserida(s), '+skipped+' ignorada(s). Revise em Grupos e oportunidades.');setBody('');await load();
  }
- const isCity=config.table==='av_city_targets',isSocial=config.table==='av_social_content',isResearch=config.table==='av_research_reports',isImport=active==='Importar';
+ const isCity=config.table==='av_city_targets',isSocial=config.table==='av_social_content',isResearch=config.table==='av_research_reports',isEmail=config.table==='av_email_campaigns',isImport=active==='Importar';
  return <div className="av-page">
   <section className="av-page-heading"><div><span className="av-kicker">AUTO VIRAL · {active.toUpperCase()}</span><h1>{config.title}</h1><p>{config.intro}</p></div><button className="av-button secondary" onClick={()=>void load()}><RefreshCw size={15}/> Atualizar</button></section>
   <section className="av-panel av-form" style={{padding:20,marginBottom:18}}>
@@ -74,7 +81,7 @@ export function GrowthToolsPage({active,workspaceId}:{active:string;workspaceId:
    {isSocial&&<div style={{display:'flex',gap:10,flexWrap:'wrap',marginTop:10}}><label className="av-field">Canal<select value={platform} onChange={e=>setPlatform(e.target.value)}>{['instagram','facebook','youtube','pinterest','tiktok','whatsapp'].map(p=><option key={p}>{p}</option>)}</select></label><label className="av-field">Status<select value={status} onChange={e=>setStatus(e.target.value)}><option value="draft">Rascunho</option><option value="approved">Aprovado</option><option value="scheduled">Agendado</option></select></label></div>}
    {!isImport&&<label className="av-field" style={{marginTop:10}}>{isResearch?'Resumo e fontes consultadas':'Conteúdo'}<textarea rows={5} value={body} onChange={e=>setBody(e.target.value)} placeholder="Escreva o conteúdo, roteiro, observações ou referências. Para usar IA, será necessário conectar uma chave Gemini." /></label>}
    {!isCity&&!isResearch&&!isSocial&&!isImport&&<label className="av-field" style={{marginTop:10}}>Formato<select value={assetType} onChange={e=>setAssetType(e.target.value)}>{['copy','short_video_script','carousel','pin','story','image_brief','email'].map(x=><option key={x} value={x}>{x}</option>)}</select></label>}
-   <div style={{display:'flex',gap:10,alignItems:'center',marginTop:14,flexWrap:'wrap'}}>{!isImport&&!isCity&&!isSocial&&<button className="av-button secondary" disabled={generating} onClick={()=>void generateWithAI()}><Sparkles size={14}/>{generating?'Gerando…':'Gerar com Gemini'}</button>}<button className="av-button primary" disabled={saving} onClick={()=>isImport?void importCsv():void save()}>{saving?'Salvando…':isImport?'Importar para revisão':'Salvar no workspace'}</button>{message&&<span role="status" className="av-feedback">{message}</span>}</div>
+   <div style={{display:'flex',gap:10,alignItems:'center',marginTop:14,flexWrap:'wrap'}}>{!isImport&&!isCity&&!isSocial&&!isEmail&&<button className="av-button secondary" disabled={generating} onClick={()=>void generateWithAI()}><Sparkles size={14}/>{generating?'Gerando…':'Gerar com Gemini'}</button>}<button className="av-button primary" disabled={saving} onClick={()=>isImport?void importCsv():void save()}>{saving?'Salvando…':isImport?'Importar para revisão':'Salvar no workspace'}</button>{message&&<span role="status" className="av-feedback">{message}</span>}</div>
   </section>
   <section className="av-panel" style={{padding:20}}><div className="av-panel-title"><h2>Registros salvos</h2><span>{rows.length} itens</span></div>
    {loading?<p>Carregando…</p>:rows.length===0?<p>Nenhum registro salvo neste módulo ainda.</p>:<div style={{display:'grid',gap:10}}>{rows.map(row=><article key={row.id} style={{padding:14,border:'1px solid var(--border)',borderRadius:12}}>
