@@ -156,6 +156,19 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
     }else setMessage('Publicação registrada.');await load();
   }
   async function cancelPost(post:ScheduledPost){if(!supabase||!workspaceId)return;const {error}=await supabase.from('av_campaign_posts').update({status:'cancelled'}).eq('id',post.id).eq('workspace_id',workspaceId);if(error)setMessage(error.message);else await load();}
+  async function refreshRunState(runId:string){
+    if(!supabase||!workspaceId)return;
+    const {data,error}=await supabase.from('av_campaign_posts').select('status').eq('workspace_id',workspaceId).eq('campaign_run_id',runId);
+    if(error)return;
+    const active=(data??[]).some(x=>['scheduled','awaiting_admin','publishing'].includes(x.status));
+    if(!active)await supabase.from('av_campaign_runs').update({status:'completed',completed_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq('id',runId).eq('workspace_id',workspaceId);
+  }
+  async function pauseRun(run:CampaignRun,paused:boolean){
+    if(!supabase||!workspaceId)return;
+    const {error}=await supabase.from('av_campaign_runs').update({status:paused?'paused':'running',paused_until:paused?new Date(Date.now()+30*60000).toISOString():null,updated_at:new Date().toISOString()}).eq('id',run.id).eq('workspace_id',workspaceId);
+    if(error)setMessage(error.message);else await load();
+  }
+
   async function generateReminders(campaign:Campaign){
     if(!supabase||!workspaceId||!campaign.copy_text){setMessage('Salve uma copy antes de criar a fila.');return;}
     const targetPlatform=campaign.channel==='whatsapp'?'whatsapp':'facebook';
@@ -211,6 +224,11 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
           <div className="av-row-actions"><button className="av-button secondary small" onClick={()=>editCampaign(c)}>Editar</button><button className="av-button secondary small" onClick={()=>void setCampaignStatus(c,c.status==='paused'?'active':'paused')}>{c.status==='paused'?'Retomar':'Pausar'}</button><button className="av-button secondary small" onClick={()=>{setScheduleOpen(scheduleOpen===c.id?null:c.id);setScheduleStart(localDateTimeValue(new Date(Date.now()+3600000)));setSelectedCommunityIds([]);}}>Fila de grupos</button><button className="av-icon-button danger" title="Excluir campanha" onClick={()=>void removeCampaign(c)}><Trash2 size={15}/></button></div>
           {scheduleOpen===c.id&&<div className="av-schedule"><strong>Montar fila por grupo</strong><label>Quantidade de tarefas por grupo<input type="number" min="1" max="100" value={scheduleCount} onChange={e=>setScheduleCount(Number(e.target.value))}/></label><label>Início da fila<input type="datetime-local" value={scheduleStart} onChange={e=>setScheduleStart(e.target.value)}/></label><p className="av-note">{approvedCommunities.length} grupo(s) aprovado(s). Selecione os grupos que permitem divulgação. Cada grupo receberá um link de rastreio exclusivo.</p><div className="av-community-picker">{approvedCommunities.map(g=><label key={g.id}><input type="checkbox" checked={selectedCommunityIds.includes(g.id)} onChange={e=>setSelectedCommunityIds(v=>e.target.checked?[...v,g.id]:v.filter(id=>id!==g.id))}/><span>{g.name} · {g.topic}</span></label>)}{!approvedCommunities.length&&<small>Não há grupos aprovados. Revise os grupos em “Grupos e oportunidades” primeiro.</small>}</div><button className="av-button primary small" onClick={()=>void generateReminders(c)}>Criar fila persistente</button><small>As tarefas e o status permanecem salvos após atualizar a página. Publicação manual.</small></div>}
         </article>;
+      })}</div>}
+    </section>
+    <section className="av-panel"><div className="av-panel-title"><h2>Execuções e histórico</h2><span>{runs.length} execução(ões)</span></div>
+      {!runs.length?<p className="av-empty">Nenhuma execução iniciada. Abra “Fila de grupos” em uma campanha e crie a primeira execução.</p>:<div className="av-list">{runs.map(run=>{const tasks=scheduledPosts.filter(p=>p.campaign_run_id===run.id),posted=tasks.filter(p=>p.status==='published').length,pending=tasks.filter(p=>p.status==='scheduled').length,waiting=tasks.filter(p=>p.status==='awaiting_admin').length,failed=tasks.filter(p=>p.status==='failed').length,cancelled=tasks.filter(p=>p.status==='cancelled').length,percent=tasks.length?Math.round(posted/tasks.length*100):0,remaining=run.paused_until?Math.max(0,Math.ceil((new Date(run.paused_until).getTime()-clock)/1000)):0;
+        return <article className="av-list-row" key={run.id}><div className="av-list-main"><strong>{campaigns.find(c=>c.id===run.campaign_id)?.name||'Campanha'} — {run.name}</strong><small>{new Date(run.created_at).toLocaleString('pt-BR')} · {run.status}</small><div className="av-run-progress"><div style={{width:percent+'%'}}/></div><strong>{posted} de {tasks.length||run.total_tasks} grupos/tarefas postados · {percent}%</strong><small>{run.total_groups} grupos selecionados · {pending} pendentes · {waiting} aguardando autorização · {failed} falhas · {cancelled} cancelados</small>{run.status==='paused'&&<p className="av-cooldown">Execução pausada {remaining>0?'· retoma em '+Math.floor(remaining/60)+'m '+remaining%60+'s':'· aguardando retomada'}</p>}</div><div className="av-row-actions">{run.status==='running'&&<button className="av-button secondary small" onClick={()=>void pauseRun(run,true)}>Pausar execução</button>}{run.status==='paused'&&<button className="av-button primary small" onClick={()=>void pauseRun(run,false)}>Retomar execução</button>}</div></article>;
       })}</div>}
     </section>
     <section className="av-panel"><div className="av-panel-title"><h2>Atividades da fila</h2><span>{scheduledPosts.length} tarefa(s) salvas</span></div><p className="av-note">Esta fila é persistida no Supabase. “Pendente” aguarda sua ação; “Aguardando autorização” significa que você solicitou aprovação ao administrador; “Postado” é uma confirmação manual. Não publicamos automaticamente em grupos privados ou arbitrários.</p>
