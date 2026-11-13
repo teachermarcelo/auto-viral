@@ -11,8 +11,8 @@ type Campaign = {
 };
 type TrackingLink = { id: string; campaign_id: string | null; code: string; destination_url: string; label: string | null };
 type ScheduledPost = { id: string; campaign_id: string; scheduled_at: string; status: string; copy_snapshot: string; destination_url: string | null; published_url: string | null; channel?: string; media_url?: string|null; community_id?: string|null; tracking_link_id?: string|null; execution_note?: string|null };
-type Community = { id: string; name: string; url: string; topic: string; status: string; notes: string | null };
-type CommunityOption = { id:string; name:string; url:string; topic:string; status:string };
+type Community = { id: string; name: string; url: string; topic: string; status: string; notes: string | null; platform?: string };
+type CommunityOption = { id:string; name:string; url:string; topic:string; status:string; platform:string };
 
 const PROJECT_URL = 'https://nuyzvpkvawixidotuuio.supabase.co';
 const CLICK_URL = `${PROJECT_URL}/functions/v1/av-click?c=`;
@@ -63,7 +63,7 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
       supabase.from('av_tracking_links').select('id,campaign_id,code,destination_url,label').eq('workspace_id',workspaceId).order('created_at',{ascending:false}),
       supabase.from('av_campaign_posts').select('id,campaign_id,scheduled_at,status,copy_snapshot,destination_url,published_url,channel,media_url,community_id,tracking_link_id,execution_note').eq('workspace_id',workspaceId).order('scheduled_at',{ascending:true}),
       supabase.from('av_leads').select('campaign_id,city').eq('workspace_id',workspaceId),
-      supabase.from('av_communities').select('id,name,url,topic,status').eq('workspace_id',workspaceId).order('name')
+      supabase.from('av_communities').select('id,name,url,topic,status,platform').eq('workspace_id',workspaceId).order('name')
     ]);
     if(pr.error)setMessage('Produtos: '+pr.error.message);
     if(cr.error)setMessage('Campanhas: '+cr.error.message);
@@ -157,8 +157,9 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
   async function cancelPost(post:ScheduledPost){if(!supabase||!workspaceId)return;const {error}=await supabase.from('av_campaign_posts').update({status:'cancelled'}).eq('id',post.id).eq('workspace_id',workspaceId);if(error)setMessage(error.message);else await load();}
   async function generateReminders(campaign:Campaign){
     if(!supabase||!workspaceId||!campaign.copy_text){setMessage('Salve uma copy antes de criar a fila.');return;}
-    const targets=communities.filter(x=>selectedCommunityIds.includes(x.id)&&x.status==='approved');
-    if(campaign.channel==='facebook_group'&&!targets.length){setMessage('Selecione pelo menos um grupo aprovado em Grupos e oportunidades.');return;}
+    const targetPlatform=campaign.channel==='whatsapp'?'whatsapp':'facebook';
+    const targets=communities.filter(x=>selectedCommunityIds.includes(x.id)&&x.status==='approved'&&x.platform===targetPlatform);
+    if(['facebook_group','whatsapp'].includes(campaign.channel)&&!targets.length){setMessage('Selecione pelo menos um grupo aprovado em Grupos e oportunidades.');return;}
     const count=Math.min(100,Math.max(1,Number(scheduleCount)||1)),start=new Date(scheduleStart);
     if(!Number.isFinite(start.getTime())){setMessage('Data e horário inválidos.');return;}
     const pauseEvery=Math.max(0,campaign.pause_after_posts||0),pauseMs=Math.max(0,campaign.pause_duration_minutes||0)*60000,interval=Math.max(0,campaign.posting_interval_seconds||0)*1000;
@@ -182,7 +183,8 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
     if(error){setMessage('Não foi possível salvar a fila: '+error.message);return;}
     setMessage(tasks.length+' tarefa(s) persistida(s). A publicação em grupos continua manual; o temporizador controla o ritmo da fila, não envia posts automaticamente.');setScheduleOpen(null);setSelectedCommunityIds([]);await load();
   }
-  const approvedCommunities=communities.filter(x=>x.status==='approved');
+  const targetPlatform=campaignChannel==='whatsapp'?'whatsapp':'facebook';
+  const approvedCommunities=communities.filter(x=>x.status==='approved'&&x.platform===targetPlatform);
   const previewImage=imageFile?URL.createObjectURL(imageFile):form.image_url||products.find(p=>p.id===form.product_id)?.image_url||null;
   const statusText=(s:string)=>s==='scheduled'?'Pendente':s==='awaiting_admin'?'Aguardando autorização do administrador':s==='published'?'Postado':s==='cancelled'?'Cancelado':s==='failed'?'Falhou':s;
   return <div className="av-page">
@@ -229,7 +231,7 @@ export function CommunitiesPage({ workspaceId }: { workspaceId: string | null })
   const load = useCallback(async () => {
     if (!supabase || !workspaceId) { setLoading(false); return; }
     setLoading(true);
-    const { data, error } = await supabase.from('av_communities').select('id,name,url,topic,status,notes').eq('workspace_id', workspaceId).order('created_at', { ascending: false });
+    const { data, error } = await supabase.from('av_communities').select('id,name,url,topic,status,notes,platform').eq('workspace_id', workspaceId).order('created_at', { ascending: false });
     if (error) setMessage(`Erro ao carregar grupos: ${error.message}`);
     setCommunities((data ?? []) as Community[]);
     setLoading(false);
@@ -243,13 +245,13 @@ export function CommunitiesPage({ workspaceId }: { workspaceId: string | null })
     let normalized: string;
     try { normalized = normalizeCommunityUrl(form.url); } catch { setMessage('Não foi possível normalizar o endereço do grupo.'); return; }
     const { error } = await supabase.from('av_communities').insert({
-      workspace_id: workspaceId, name: form.name.trim(), url: form.url.trim(),
+      workspace_id: workspaceId, name: form.name.trim(), url: form.url.trim(), platform: form.platform,
       normalized_url: normalized, topic: form.topic.trim() || 'Geral',
       rules_url: form.rules_url.trim() || null, notes: form.notes.trim() || null,
     });
     if (error?.code === '23505') setMessage('Este grupo já está cadastrado neste workspace. Não foi criado um duplicado.');
     else if (error) setMessage(`Não foi possível salvar o grupo: ${error.message}`);
-    else { setMessage('Grupo salvo. Revise as regras antes de qualquer publicação.'); setForm({ name: '', url: '', topic: 'Psicopedagogia', rules_url: '', notes: '' }); await load(); }
+    else { setMessage('Grupo salvo. Revise as regras antes de qualquer publicação.'); setForm({ name: '', url: '', topic: 'Psicopedagogia', platform:'facebook', rules_url: '', notes: '' }); await load(); }
   }
 
   async function updateStatus(item: Community, status: string) {
@@ -297,6 +299,7 @@ export function CommunitiesPage({ workspaceId }: { workspaceId: string | null })
       <h2><Plus size={18}/> Adicionar grupo</h2>
       <form className="av-form" onSubmit={addCommunity}>
         <div className="av-form-grid">
+          <label>Plataforma<select value={form.platform} onChange={e=>setForm({...form,platform:e.target.value})}><option value="facebook">Facebook</option><option value="whatsapp">WhatsApp</option><option value="telegram">Telegram</option><option value="other">Outra</option></select></label>
           <label>Nome do grupo<input required maxLength={180} value={form.name} onChange={e => setForm({...form,name:e.target.value})} placeholder="Ex.: Mães atípicas — Curitiba"/></label>
           <label>Tema<input required value={form.topic} onChange={e => setForm({...form,topic:e.target.value})} placeholder="Autismo, psicopedagogia..."/></label>
         </div>
@@ -310,7 +313,7 @@ export function CommunitiesPage({ workspaceId }: { workspaceId: string | null })
       <div className="av-panel-title"><h2>Grupos cadastrados</h2><span>{communities.length} grupo(s)</span></div>
       {loading ? <p className="av-empty">Consultando Supabase…</p> : communities.length === 0 ? <p className="av-empty">Nenhum grupo cadastrado. Adicione um grupo acima.</p> :
         <div className="av-list">{communities.map(item => <article className="av-list-row" key={item.id}>
-          <div className="av-list-main"><strong>{item.name}</strong><small>{item.topic} · {item.status}</small><a href={item.url} target="_blank" rel="noreferrer">{item.url} <ExternalLink size={12}/></a>{item.notes && <p>{item.notes}</p>}</div>
+          <div className="av-list-main"><strong>{item.name}</strong><small>{(item.platform||'facebook').toUpperCase()} · {item.topic} · {item.status}</small><a href={item.url} target="_blank" rel="noreferrer">{item.url} <ExternalLink size={12}/></a>{item.notes && <p>{item.notes}</p>}</div>
           <select aria-label={`Status de ${item.name}`} value={item.status} onChange={e => void updateStatus(item,e.target.value)}><option value="to_review">Revisar regras</option><option value="approved">Aprovado para participação</option><option value="do_not_post">Não publicar</option><option value="archived">Arquivado</option></select>
           <button className="av-icon-button danger" title="Excluir grupo" onClick={() => void remove(item)}><Trash2 size={15}/></button>
         </article>)}</div>}
