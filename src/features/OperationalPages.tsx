@@ -3,15 +3,15 @@ import { Copy, ExternalLink, Plus, RefreshCw, Users, Megaphone, CalendarClock, U
 import { supabase } from '../lib/supabase';
 import './operational-pages.css';
 
-type ProductOption = { id: string; name: string };
+type ProductOption = { id: string; name: string; image_url?: string | null };
 type Campaign = {
   id: string; name: string; product_id: string | null; objective: string; status: string; channel: string;
   copy_text: string | null; destination_url: string | null; image_url: string | null; video_url: string | null;
-  posting_interval_seconds: number; pause_after_posts: number; pause_duration_minutes: number;
+  posting_interval_seconds: number; pause_after_posts: number; pause_duration_minutes: number; paused_until?: string | null; posts_since_pause?: number;
 };
 type TrackingLink = { id: string; campaign_id: string | null; code: string; destination_url: string; label: string | null };
-type ScheduledPost = { id: string; campaign_id: string; scheduled_at: string; status: string; copy_snapshot: string; destination_url: string | null; published_url: string | null };
-type Community = { id: string; name: string; url: string; topic: string; status: string; notes: string | null };
+type ScheduledPost = { id: string; campaign_id: string; scheduled_at: string; status: string; copy_snapshot: string; destination_url: string | null; published_url: string | null; channel?: string; media_url?: string|null; community_id?: string|null; tracking_link_id?: string|null; execution_note?: string|null };
+type Community = { id: string; name: string; url: string; topic: string; status: string; notes: string | null };\ntype CommunityOption = { id:string; name:string; url:string; topic:string; status:string };
 
 const PROJECT_URL = 'https://nuyzvpkvawixidotuuio.supabase.co';
 const CLICK_URL = `${PROJECT_URL}/functions/v1/av-click?c=`;
@@ -35,241 +35,187 @@ function localDateTimeValue(date: Date) {
 }
 
 export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
-  const [products, setProducts] = useState<ProductOption[]>([]);
-  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [links, setLinks] = useState<TrackingLink[]>([]);
-  const [clickCounts, setClickCounts] = useState<Record<string, number>>({});
-  const [clickSeries, setClickSeries] = useState<{ label: string; count: number }[]>([]);
-  const [scheduledPosts, setScheduledPosts] = useState<ScheduledPost[]>([]);
-  const [leadsByCampaign, setLeadsByCampaign] = useState<Record<string, { count: number; cities: string[] }>>({});
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState('');
-  const [scheduleOpen, setScheduleOpen] = useState<string | null>(null);
-  const [scheduleCount, setScheduleCount] = useState(1);
-  const [scheduleStart, setScheduleStart] = useState(localDateTimeValue(new Date(Date.now() + 3600000)));
+  const [products,setProducts]=useState<ProductOption[]>([]);
+  const [campaigns,setCampaigns]=useState<Campaign[]>([]);
+  const [links,setLinks]=useState<TrackingLink[]>([]);
+  const [communities,setCommunities]=useState<CommunityOption[]>([]);
+  const [clickCounts,setClickCounts]=useState<Record<string,number>>({});
+  const [postClickStats,setPostClickStats]=useState<Record<string,{count:number;hosts:string[];lastClick:string|null}>>({});
+  const [clickSeries,setClickSeries]=useState<{label:string;count:number}[]>([]);
+  const [scheduledPosts,setScheduledPosts]=useState<ScheduledPost[]>([]);
+  const [leadsByCampaign,setLeadsByCampaign]=useState<Record<string,{count:number;cities:string[]}>>({});
+  const [loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[message,setMessage]=useState('');
+  const [scheduleOpen,setScheduleOpen]=useState<string|null>(null),[scheduleCount,setScheduleCount]=useState(1);
+  const [scheduleStart,setScheduleStart]=useState(localDateTimeValue(new Date(Date.now()+3600000)));
+  const [selectedCommunityIds,setSelectedCommunityIds]=useState<string[]>([]);
+  const [editingCampaignId,setEditingCampaignId]=useState<string|null>(null);
+  const [imageFile,setImageFile]=useState<File|null>(null);
+  const [clock,setClock]=useState(Date.now());
+  const [form,setForm]=useState({name:'',product_id:'',objective:'organic_traffic',channel:'facebook_group',copy_text:'',destination_url:'',image_url:'',video_url:'',posting_interval_seconds:400,pause_after_posts:5,pause_duration_minutes:30});
 
-  const [form, setForm] = useState({
-    name: '', product_id: '', objective: 'organic_traffic', channel: 'facebook_group',
-    copy_text: '', destination_url: '', image_url: '', video_url: '',
-    posting_interval_seconds: 360, pause_after_posts: 0, pause_duration_minutes: 0,
-  });
-
-  const load = useCallback(async () => {
-    if (!supabase || !workspaceId) { setLoading(false); return; }
+  const load=useCallback(async()=>{
+    if(!supabase||!workspaceId){setLoading(false);return;}
     setLoading(true);
-    const [productResult, campaignResult, linkResult, postResult, leadResult] = await Promise.all([
-      supabase.from('av_products').select('id,name').eq('workspace_id', workspaceId).order('name'),
-      supabase.from('av_campaigns').select('id,name,product_id,objective,status,channel,copy_text,destination_url,image_url,video_url,posting_interval_seconds,pause_after_posts,pause_duration_minutes').eq('workspace_id', workspaceId).order('created_at', { ascending: false }),
-      supabase.from('av_tracking_links').select('id,campaign_id,code,destination_url,label').eq('workspace_id', workspaceId).order('created_at', { ascending: false }),
-      supabase.from('av_campaign_posts').select('id,campaign_id,scheduled_at,status,copy_snapshot,destination_url,published_url,channel,media_url').eq('workspace_id', workspaceId).order('scheduled_at', { ascending: true }),
-      supabase.from('av_leads').select('campaign_id,city').eq('workspace_id', workspaceId),
+    const [pr,cr,lr,postr,leadR,communityR]=await Promise.all([
+      supabase.from('av_products').select('id,name,image_url').eq('workspace_id',workspaceId).order('name'),
+      supabase.from('av_campaigns').select('id,name,product_id,objective,status,channel,copy_text,destination_url,image_url,video_url,posting_interval_seconds,pause_after_posts,pause_duration_minutes,paused_until,posts_since_pause').eq('workspace_id',workspaceId).order('created_at',{ascending:false}),
+      supabase.from('av_tracking_links').select('id,campaign_id,code,destination_url,label').eq('workspace_id',workspaceId).order('created_at',{ascending:false}),
+      supabase.from('av_campaign_posts').select('id,campaign_id,scheduled_at,status,copy_snapshot,destination_url,published_url,channel,media_url,community_id,tracking_link_id,execution_note').eq('workspace_id',workspaceId).order('scheduled_at',{ascending:true}),
+      supabase.from('av_leads').select('campaign_id,city').eq('workspace_id',workspaceId),
+      supabase.from('av_communities').select('id,name,url,topic,status').eq('workspace_id',workspaceId).order('name')
     ]);
-    if (productResult.error) setMessage(`Produtos: ${productResult.error.message}`);
-    if (campaignResult.error) setMessage(`Campanhas: ${campaignResult.error.message}`);
-    if (linkResult.error) setMessage(`Links: ${linkResult.error.message}`);
-    if (postResult.error) setMessage(`Calendário: ${postResult.error.message}`);
-    setScheduledPosts((postResult.data ?? []) as ScheduledPost[]);
-    if (leadResult.error) setMessage(`Leads: ${leadResult.error.message}`);
-    const leadStats: Record<string, { count: number; cities: string[] }> = {};
-    for (const lead of leadResult.data ?? []) {
-      if (!lead.campaign_id) continue;
-      leadStats[lead.campaign_id] ??= { count: 0, cities: [] };
-      leadStats[lead.campaign_id].count += 1;
-      if (lead.city && !leadStats[lead.campaign_id].cities.includes(lead.city)) leadStats[lead.campaign_id].cities.push(lead.city);
+    if(pr.error)setMessage('Produtos: '+pr.error.message);
+    if(cr.error)setMessage('Campanhas: '+cr.error.message);
+    if(lr.error)setMessage('Links: '+lr.error.message);
+    if(postr.error)setMessage('Fila: '+postr.error.message);
+    if(communityR.error)setMessage('Grupos: '+communityR.error.message);
+    const now=Date.now();
+    const campaignRows=(cr.data??[]) as Campaign[];
+    const expired=campaignRows.filter(x=>x.status==='paused'&&x.paused_until&&new Date(x.paused_until).getTime()<=now).map(x=>x.id);
+    if(expired.length){
+      await supabase.from('av_campaigns').update({status:'active',paused_until:null,posts_since_pause:0}).in('id',expired).eq('workspace_id',workspaceId);
+      campaignRows.forEach(x=>{if(expired.includes(x.id)){x.status='active';x.paused_until=null;x.posts_since_pause=0;}});
     }
+    setProducts((pr.data??[]) as ProductOption[]);
+    setCampaigns(campaignRows);
+    setLinks((lr.data??[]) as TrackingLink[]);
+    setScheduledPosts((postr.data??[]) as ScheduledPost[]);
+    setCommunities((communityR.data??[]) as CommunityOption[]);
+    const leadStats:Record<string,{count:number;cities:string[]}>={};
+    for(const lead of leadR.data??[]){if(!lead.campaign_id)continue;leadStats[lead.campaign_id]??={count:0,cities:[]};leadStats[lead.campaign_id].count++;if(lead.city&&!leadStats[lead.campaign_id].cities.includes(lead.city))leadStats[lead.campaign_id].cities.push(lead.city);}
     setLeadsByCampaign(leadStats);
-    setProducts((productResult.data ?? []) as ProductOption[]);
-    setCampaigns((campaignResult.data ?? []) as Campaign[]);
-    setLinks((linkResult.data ?? []) as TrackingLink[]);
-    const ids = (linkResult.data ?? []).map((item: TrackingLink) => item.id);
-    if (ids.length) {
-      const since = new Date(Date.now() - 6 * 86400000).toISOString();
-      const events = await supabase.from('av_tracking_events').select('tracking_link_id,created_at').in('tracking_link_id', ids).eq('event_type', 'click').gte('created_at', since);
-      if (!events.error) {
-        const counts: Record<string, number> = {};
-        const daily: Record<string, number> = {};
-        for (const event of events.data ?? []) {
-          counts[event.tracking_link_id] = (counts[event.tracking_link_id] ?? 0) + 1;
-          const key = new Date(event.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-          daily[key] = (daily[key] ?? 0) + 1;
-        }
-        setClickCounts(counts);
-        setClickSeries(Array.from({ length: 7 }, (_, index) => {
-          const day = new Date(); day.setDate(day.getDate() - (6 - index));
-          const label = day.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-          return { label, count: daily[label] ?? 0 };
-        }));
+    const linkIds=(lr.data??[]).map((x:TrackingLink)=>x.id);
+    if(linkIds.length){
+      const since=new Date(Date.now()-6*86400000).toISOString();
+      const events=await supabase.from('av_tracking_events').select('tracking_link_id,created_at,referrer_host,device_type').in('tracking_link_id',linkIds).eq('event_type','click').gte('created_at',since);
+      const counts:Record<string,number>={},daily:Record<string,number>={},postStats:Record<string,{count:number;hosts:string[];lastClick:string|null}>={};
+      for(const event of events.data??[]){
+        counts[event.tracking_link_id]=(counts[event.tracking_link_id]??0)+1;
+        const day=new Date(event.created_at).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});daily[day]=(daily[day]??0)+1;
+        const post=(postr.data??[]).find((p:any)=>p.tracking_link_id===event.tracking_link_id);
+        if(post){postStats[post.id]??={count:0,hosts:[],lastClick:null};postStats[post.id].count++;if(event.referrer_host&&!postStats[post.id].hosts.includes(event.referrer_host))postStats[post.id].hosts.push(event.referrer_host);if(!postStats[post.id].lastClick||event.created_at>postStats[post.id].lastClick!)postStats[post.id].lastClick=event.created_at;}
       }
-    } else { setClickCounts({}); setClickSeries([]); }
+      setClickCounts(counts);setPostClickStats(postStats);
+      setClickSeries(Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(6-i));const label=d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});return{label,count:daily[label]??0};}));
+    }else{setClickCounts({});setPostClickStats({});setClickSeries([]);}
     setLoading(false);
-  }, [workspaceId]);
+  },[workspaceId]);
+  useEffect(()=>{void load();},[load]);
+  useEffect(()=>{const id=window.setInterval(()=>{setClock(Date.now());if(campaigns.some(x=>x.status==='paused'&&x.paused_until&&new Date(x.paused_until).getTime()<=Date.now()))void load();},1000);return()=>window.clearInterval(id);},[campaigns,load]);
 
-  useEffect(() => { void load(); }, [load]);
-
-  async function createCampaign(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!supabase || !workspaceId) return;
-    if (form.destination_url && !validHttpUrl(form.destination_url)) { setMessage('O link de destino precisa começar com http:// ou https://.'); return; }
-    if (form.image_url && !validHttpUrl(form.image_url)) { setMessage('A URL da imagem não é válida.'); return; }
-    if (form.video_url && !validHttpUrl(form.video_url)) { setMessage('A URL do vídeo não é válida.'); return; }
-    setSaving(true); setMessage('');
-    const { data: campaign, error } = await supabase.from('av_campaigns').insert({
-      workspace_id: workspaceId,
-      product_id: form.product_id || null,
-      name: form.name.trim(),
-      objective: form.objective,
-      status: 'planned',
-      channel: form.channel,
-      copy_text: form.copy_text.trim() || null,
-      destination_url: form.destination_url.trim() || null,
-      image_url: form.image_url.trim() || null,
-      video_url: form.video_url.trim() || null,
-      posting_interval_seconds: Number(form.posting_interval_seconds),
-      pause_after_posts: Number(form.pause_after_posts),
-      pause_duration_minutes: Number(form.pause_duration_minutes),
-    }).select('id').single();
-    if (error) { setMessage(`Não foi possível salvar a campanha: ${error.message}`); setSaving(false); return; }
-
-    if (form.destination_url) {
-      const code = crypto.randomUUID().replaceAll('-', '').slice(0, 16);
-      const { error: linkError } = await supabase.from('av_tracking_links').insert({
-        workspace_id: workspaceId,
-        campaign_id: campaign.id,
-        code,
-        destination_url: form.destination_url.trim(),
-        label: form.name.trim(),
-      });
-      if (linkError) setMessage(`Campanha salva, mas o link rastreável não foi criado: ${linkError.message}`);
-      else setMessage('Campanha salva no banco e link rastreável criado.');
-    } else setMessage('Campanha salva no banco. Adicione um link de destino para habilitar rastreamento de cliques.');
-
-    setForm({ name: '', product_id: '', objective: 'organic_traffic', channel: 'facebook_group', copy_text: '', destination_url: '', image_url: '', video_url: '', posting_interval_seconds: 360, pause_after_posts: 0, pause_duration_minutes: 0 });
-    setSaving(false);
-    await load();
-  }
-
-  async function markPostPublished(post: ScheduledPost) {
-    if (!supabase || !workspaceId) return;
-    const publishedUrl = window.prompt('Cole o link da publicação realizada (opcional):', post.destination_url ?? '');
-    if (publishedUrl === null) return;
-    if (publishedUrl.trim() && !validHttpUrl(publishedUrl.trim())) { setMessage('O link da publicação precisa ser uma URL http/https válida.'); return; }
-    const { error } = await supabase.from('av_campaign_posts').update({
-      status: 'published', published_at: new Date().toISOString(), published_url: publishedUrl.trim() || null,
-    }).eq('id', post.id).eq('workspace_id', workspaceId);
-    if (error) setMessage(`Não foi possível registrar a publicação: ${error.message}`);
-    else { setMessage('Publicação registrada manualmente.'); await load(); }
-  }
-
-  async function cancelPost(post: ScheduledPost) {
-    if (!supabase || !workspaceId) return;
-    const { error } = await supabase.from('av_campaign_posts').update({ status: 'cancelled' }).eq('id', post.id).eq('workspace_id', workspaceId);
-    if (error) setMessage(`Não foi possível cancelar o lembrete: ${error.message}`);
-    else await load();
-  }
-
-  async function generateReminders(campaign: Campaign) {
-    if (!supabase || !workspaceId || !campaign.copy_text) {
-      setMessage('Esta campanha precisa ter uma copy salva antes de gerar lembretes.');
-      return;
+  function resetForm(){setForm({name:'',product_id:'',objective:'organic_traffic',channel:'facebook_group',copy_text:'',destination_url:'',image_url:'',video_url:'',posting_interval_seconds:400,pause_after_posts:5,pause_duration_minutes:30});setEditingCampaignId(null);setImageFile(null);}
+  function editCampaign(c:Campaign){setEditingCampaignId(c.id);setImageFile(null);setForm({name:c.name,product_id:c.product_id||'',objective:c.objective,channel:c.channel,copy_text:c.copy_text||'',destination_url:c.destination_url||'',image_url:c.image_url||'',video_url:c.video_url||'',posting_interval_seconds:c.posting_interval_seconds,pause_after_posts:c.pause_after_posts,pause_duration_minutes:c.pause_duration_minutes});window.scrollTo({top:0,behavior:'smooth'});}
+  async function saveCampaign(event:React.FormEvent<HTMLFormElement>){
+    event.preventDefault();if(!supabase||!workspaceId)return;
+    if(form.destination_url&&!validHttpUrl(form.destination_url)){setMessage('O link de destino precisa ser http(s).');return;}
+    if(form.image_url&&!validHttpUrl(form.image_url)){setMessage('A URL da imagem não é válida.');return;}
+    if(form.video_url&&!validHttpUrl(form.video_url)){setMessage('A URL do vídeo não é válida.');return;}
+    if(imageFile&&(!['image/jpeg','image/png','image/webp'].includes(imageFile.type)||imageFile.size>5*1024*1024)){setMessage('Envie JPG, PNG ou WebP de até 5 MB.');return;}
+    setSaving(true);setMessage('');
+    let imageUrl=form.image_url.trim()||null;
+    if(imageFile){
+      const ext=imageFile.type==='image/png'?'png':imageFile.type==='image/webp'?'webp':'jpg';
+      const objectPath=workspaceId+'/campaigns/'+crypto.randomUUID()+'.'+ext;
+      const upload=await supabase.storage.from('av-product-media').upload(objectPath,imageFile,{contentType:imageFile.type,cacheControl:'3600',upsert:false});
+      if(upload.error){setSaving(false);setMessage('Falha no upload: '+upload.error.message);return;}
+      imageUrl=supabase.storage.from('av-product-media').getPublicUrl(objectPath).data.publicUrl;
     }
-    const count = Math.min(30, Math.max(1, Number(scheduleCount) || 1));
-    const start = new Date(scheduleStart);
-    if (!Number.isFinite(start.getTime())) { setMessage('Informe uma data e horário válidos.'); return; }
-    const interval = Math.max(0, campaign.posting_interval_seconds || 0);
-    const pauseEvery = Math.max(0, campaign.pause_after_posts || 0);
-    const pauseMs = Math.max(0, campaign.pause_duration_minutes || 0) * 60000;
-    let next = start.getTime();
-    const rows = [];
-    for (let i = 0; i < count; i++) {
-      rows.push({
-        workspace_id: workspaceId,
-        campaign_id: campaign.id,
-        channel: campaign.channel === 'instagram_story' ? 'instagram_story' : 'manual',
-        scheduled_at: new Date(next).toISOString(),
-        status: 'scheduled',
-        copy_snapshot: campaign.copy_text,
-        media_url: campaign.image_url || campaign.video_url,
-        destination_url: campaign.destination_url,
-      });
-      next += interval * 1000;
-      if (pauseEvery > 0 && (i + 1) % pauseEvery === 0 && i + 1 < count) next += pauseMs;
+    const payload={product_id:form.product_id||null,name:form.name.trim(),objective:form.objective,status:'planned',channel:form.channel,copy_text:form.copy_text.trim()||null,destination_url:form.destination_url.trim()||null,image_url:imageUrl,video_url:form.video_url.trim()||null,posting_interval_seconds:Number(form.posting_interval_seconds),pause_after_posts:Number(form.pause_after_posts),pause_duration_minutes:Number(form.pause_duration_minutes)};
+    const result=editingCampaignId
+      ? await supabase.from('av_campaigns').update(payload).eq('id',editingCampaignId).eq('workspace_id',workspaceId).select('id').single()
+      : await supabase.from('av_campaigns').insert({...payload,workspace_id:workspaceId}).select('id').single();
+    if(result.error){setSaving(false);setMessage('Não foi possível salvar: '+result.error.message);return;}
+    const campaignId=result.data.id;
+    if(form.destination_url){
+      const existing=links.find(x=>x.campaign_id===campaignId);
+      if(existing){const upd=await supabase.from('av_tracking_links').update({destination_url:form.destination_url.trim(),label:form.name.trim()}).eq('id',existing.id).eq('workspace_id',workspaceId);if(upd.error)setMessage('Campanha salva, mas link não atualizado: '+upd.error.message);}
+      else{const code=crypto.randomUUID().replaceAll('-','').slice(0,16);const ins=await supabase.from('av_tracking_links').insert({workspace_id:workspaceId,campaign_id:campaignId,code,destination_url:form.destination_url.trim(),label:form.name.trim()});if(ins.error)setMessage('Campanha salva, mas link não criado: '+ins.error.message);}
     }
-    const { error } = await supabase.from('av_campaign_posts').insert(rows);
-    if (error) setMessage(`Não foi possível salvar os lembretes: ${error.message}`);
-    else { setMessage(`${rows.length} publicação(ões) agendada(s). Instagram Stories serão enviados automaticamente no horário; outros canais permanecem manuais.`); setScheduleOpen(null); }
+    setSaving(false);setMessage(editingCampaignId?'Campanha atualizada.':'Campanha criada e salva no banco.');resetForm();await load();
   }
-
+  async function removeCampaign(c:Campaign){
+    if(!supabase||!workspaceId||!window.confirm('Excluir a campanha "'+c.name+'"? Os lembretes serão removidos; cliques, leads e vendas históricos serão preservados sem vínculo com a campanha.'))return;
+    const {error}=await supabase.from('av_campaigns').delete().eq('id',c.id).eq('workspace_id',workspaceId);
+    if(error)setMessage('Não foi possível excluir: '+error.message);else{setMessage('Campanha excluída; registros históricos preservados.');if(editingCampaignId===c.id)resetForm();await load();}
+  }
+  async function setCampaignStatus(c:Campaign,status:string){if(!supabase||!workspaceId)return;const {error}=await supabase.from('av_campaigns').update({status,paused_until:status==='paused'?(c.paused_until||new Date(Date.now()+30*60000).toISOString()):null}).eq('id',c.id).eq('workspace_id',workspaceId);if(error)setMessage(error.message);else await load();}
+  async function markAwaitingAdmin(post:ScheduledPost){if(!supabase||!workspaceId)return;const {error}=await supabase.from('av_campaign_posts').update({status:'awaiting_admin',execution_note:'Aguardando autorização do administrador do grupo.'}).eq('id',post.id).eq('workspace_id',workspaceId);if(error)setMessage(error.message);else await load();}
+  async function markPostPublished(post:ScheduledPost){
+    if(!supabase||!workspaceId)return;
+    const url=window.prompt('Cole o link da publicação (opcional):',post.destination_url||'');if(url===null)return;
+    if(url.trim()&&!validHttpUrl(url.trim())){setMessage('Informe uma URL válida.');return;}
+    const {error}=await supabase.from('av_campaign_posts').update({status:'published',published_at:new Date().toISOString(),published_url:url.trim()||null,execution_note:'Publicado manualmente e confirmado pelo operador.'}).eq('id',post.id).eq('workspace_id',workspaceId);
+    if(error){setMessage('Não foi possível registrar: '+error.message);return;}
+    const campaign=campaigns.find(x=>x.id===post.campaign_id);
+    if(campaign&&campaign.pause_after_posts>0&&campaign.pause_duration_minutes>0){
+      const next=(campaign.posts_since_pause||0)+1;
+      if(next>=campaign.pause_after_posts){const until=new Date(Date.now()+campaign.pause_duration_minutes*60000).toISOString();await supabase.from('av_campaigns').update({status:'paused',paused_until:until,posts_since_pause:0}).eq('id',campaign.id).eq('workspace_id',workspaceId);setMessage('Publicação registrada. Pausa operacional de '+campaign.pause_duration_minutes+' minutos iniciada; a fila será liberada automaticamente ao terminar.');}
+      else await supabase.from('av_campaigns').update({posts_since_pause:next}).eq('id',campaign.id).eq('workspace_id',workspaceId);
+    }else setMessage('Publicação registrada.');await load();
+  }
+  async function cancelPost(post:ScheduledPost){if(!supabase||!workspaceId)return;const {error}=await supabase.from('av_campaign_posts').update({status:'cancelled'}).eq('id',post.id).eq('workspace_id',workspaceId);if(error)setMessage(error.message);else await load();}
+  async function generateReminders(campaign:Campaign){
+    if(!supabase||!workspaceId||!campaign.copy_text){setMessage('Salve uma copy antes de criar a fila.');return;}
+    const targets=communities.filter(x=>selectedCommunityIds.includes(x.id)&&x.status==='approved');
+    if(campaign.channel==='facebook_group'&&!targets.length){setMessage('Selecione pelo menos um grupo aprovado em Grupos e oportunidades.');return;}
+    const count=Math.min(100,Math.max(1,Number(scheduleCount)||1)),start=new Date(scheduleStart);
+    if(!Number.isFinite(start.getTime())){setMessage('Data e horário inválidos.');return;}
+    const pauseEvery=Math.max(0,campaign.pause_after_posts||0),pauseMs=Math.max(0,campaign.pause_duration_minutes||0)*60000,interval=Math.max(0,campaign.posting_interval_seconds||0)*1000;
+    const tasks:any[]=[];
+    const destinations=targets.length?targets:[null];
+    for(const community of destinations){
+      let next=start.getTime();
+      for(let i=0;i<count;i++){
+        let trackingLinkId:string|null=null;
+        if(community&&campaign.destination_url){
+          const code=crypto.randomUUID().replaceAll('-','').slice(0,16);
+          const {data,error}=await supabase.from('av_tracking_links').insert({workspace_id:workspaceId,campaign_id:campaign.id,code,destination_url:campaign.destination_url,label:campaign.name+' — '+community.name}).select('id').single();
+          if(error){setMessage('Falha ao criar link exclusivo para '+community.name+': '+error.message);return;}
+          trackingLinkId=data.id;
+        }
+        tasks.push({workspace_id:workspaceId,campaign_id:campaign.id,community_id:community?.id||null,tracking_link_id:trackingLinkId,channel:'manual',scheduled_at:new Date(next).toISOString(),status:'scheduled',copy_snapshot:campaign.copy_text,media_url:campaign.image_url||campaign.video_url,destination_url:trackingLinkId?CLICK_URL+(await supabase.from('av_tracking_links').select('code').eq('id',trackingLinkId).single()).data?.code:campaign.destination_url});
+        next+=interval;if(pauseEvery>0&&(i+1)%pauseEvery===0&&i+1<count)next+=pauseMs;
+      }
+    }
+    const {error}=await supabase.from('av_campaign_posts').insert(tasks);
+    if(error){setMessage('Não foi possível salvar a fila: '+error.message);return;}
+    setMessage(tasks.length+' tarefa(s) persistida(s). A publicação em grupos continua manual; o temporizador controla o ritmo da fila, não envia posts automaticamente.');setScheduleOpen(null);setSelectedCommunityIds([]);await load();
+  }
+  const approvedCommunities=communities.filter(x=>x.status==='approved');
+  const previewImage=imageFile?URL.createObjectURL(imageFile):form.image_url||products.find(p=>p.id===form.product_id)?.image_url||null;
+  const statusText=(s:string)=>s==='scheduled'?'Pendente':s==='awaiting_admin'?'Aguardando autorização do administrador':s==='published'?'Postado':s==='cancelled'?'Cancelado':s==='failed'?'Falhou':s;
   return <div className="av-page">
-    <section className="av-page-heading">
-      <div><span className="av-eyebrow"><Megaphone size={14}/> CAMPANHAS OPERACIONAIS</span><h1>Campanhas</h1><p>Copy, produto, mídia, destino, link rastreável e calendário persistidos no Supabase.</p></div>
-      <button className="av-button secondary" onClick={() => void load()}><RefreshCw size={15}/> Atualizar</button>
-    </section>
-    {message && <div className="av-message" role="status">{message}</div>}
+    <section className="av-page-heading"><div><span className="av-eyebrow"><Megaphone size={14}/> CAMPANHAS OPERACIONAIS</span><h1>Campanhas</h1><p>Crie, edite, remova, envie imagens, organize a fila manual e acompanhe resultados por grupo.</p></div><button className="av-button secondary" onClick={()=>void load()}><RefreshCw size={15}/> Atualizar</button></section>
+    {message&&<div className="av-message" role="status">{message}</div>}
     <section className="av-panel">
-      <h2><Plus size={18}/> Criar campanha real</h2>
-      <form className="av-form" onSubmit={createCampaign}>
-        <label>Nome da campanha<input required maxLength={180} value={form.name} onChange={e => setForm({...form,name:e.target.value})} placeholder="Ex.: Psicopedagogia — avaliação inicial"/></label>
-        <div className="av-form-grid">
-          <label>Produto<select value={form.product_id} onChange={e => setForm({...form,product_id:e.target.value})}><option value="">Sem produto vinculado</option>{products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
-          <label>Canal<select value={form.channel} onChange={e => setForm({...form,channel:e.target.value})}><option value="facebook_group">Grupo do Facebook (manual)</option><option value="instagram">Instagram (manual)</option><option value="instagram_story">Instagram Stories (API oficial)</option><option value="facebook_page">Página do Facebook</option><option value="whatsapp">WhatsApp (opt-in)</option><option value="other">Outro</option></select></label>
-        </div>
-        <label>Copy / texto da publicação<textarea required rows={5} value={form.copy_text} onChange={e => setForm({...form,copy_text:e.target.value})} placeholder="Escreva o texto que será usado na publicação."/></label>
-        <label>Link de compra / destino<input type="url" value={form.destination_url} onChange={e => setForm({...form,destination_url:e.target.value})} placeholder="https://..."/></label>
-        <div className="av-form-grid">
-          <label>URL da imagem<input type="url" value={form.image_url} onChange={e => setForm({...form,image_url:e.target.value})} placeholder="https://..."/></label>
-          <label>URL do vídeo<input type="url" value={form.video_url} onChange={e => setForm({...form,video_url:e.target.value})} placeholder="https://..."/></label>
-        </div>
-        <div className="av-form-grid three">
-          <label>Intervalo do calendário (segundos)<input type="number" min="0" max="86400" value={form.posting_interval_seconds} onChange={e => setForm({...form,posting_interval_seconds:Number(e.target.value)})}/></label>
-          <label>Pausa após N lembretes<input type="number" min="0" max="1000" value={form.pause_after_posts} onChange={e => setForm({...form,pause_after_posts:Number(e.target.value)})}/></label>
-          <label>Duração da pausa (minutos)<input type="number" min="0" max="1440" value={form.pause_duration_minutes} onChange={e => setForm({...form,pause_duration_minutes:Number(e.target.value)})}/></label>
-        </div>
-        <p className="av-note">O intervalo e as pausas organizam a agenda. Instagram Stories podem ser publicados pela API oficial no horário agendado após conectar a conta e fornecer mídia pública. Outros canais continuam manuais.</p>
-        <button className="av-button primary" disabled={saving}>{saving ? 'Salvando no banco…' : 'Salvar campanha'}</button>
+      <h2><Plus size={18}/>{editingCampaignId?'Editar campanha':'Criar campanha real'}</h2>
+      <form className="av-form" onSubmit={saveCampaign}>
+        <label>Nome da campanha<input required maxLength={180} value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Ex.: Psicopedagogia — avaliação inicial"/></label>
+        <div className="av-form-grid"><label>Produto<select value={form.product_id} onChange={e=>{const p=products.find(x=>x.id===e.target.value);setForm({...form,product_id:e.target.value,image_url:p?.image_url||form.image_url});}}><option value="">Sem produto vinculado</option>{products.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label><label>Canal<select value={form.channel} onChange={e=>setForm({...form,channel:e.target.value})}><option value="facebook_group">Grupo do Facebook (manual)</option><option value="instagram">Instagram (manual)</option><option value="instagram_story">Instagram Stories (API oficial)</option><option value="facebook_page">Página do Facebook</option><option value="whatsapp">WhatsApp (manual/opt-in)</option><option value="other">Outro</option></select></label></div>
+        <label>Copy / texto da publicação<textarea required rows={5} value={form.copy_text} onChange={e=>setForm({...form,copy_text:e.target.value})} placeholder="Escreva o texto que será usado na publicação."/></label>
+        <label>Link de compra / destino<input type="url" value={form.destination_url} onChange={e=>setForm({...form,destination_url:e.target.value})} placeholder="https://..."/></label>
+        <div className="av-upload-box"><label className="file-button"><Upload size={15}/> Enviar imagem da campanha<input type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>setImageFile(e.target.files?.[0]||null)}/></label><span>JPG, PNG ou WebP · até 5 MB</span>{previewImage&&<img src={previewImage} alt="Prévia da imagem da campanha" className="av-campaign-preview"/>}</div>
+        <label>URL do vídeo (opcional)<input type="url" value={form.video_url} onChange={e=>setForm({...form,video_url:e.target.value})} placeholder="https://..."/></label>
+        <div className="av-form-grid three"><label>Intervalo entre tarefas (segundos)<input type="number" min="0" max="86400" value={form.posting_interval_seconds} onChange={e=>setForm({...form,posting_interval_seconds:Number(e.target.value)})}/></label><label>Pausar após N publicações<input type="number" min="0" max="1000" value={form.pause_after_posts} onChange={e=>setForm({...form,pause_after_posts:Number(e.target.value)})}/></label><label>Duração da pausa (minutos)<input type="number" min="0" max="1440" value={form.pause_duration_minutes} onChange={e=>setForm({...form,pause_duration_minutes:Number(e.target.value)})}/></label></div>
+        <p className="av-note">A pausa é um controle operacional de ritmo e não garante evitar restrições de plataforma. Postagens em grupos e WhatsApp são manuais e dependem das regras e permissões de cada comunidade.</p>
+        <div className="av-row-actions"><button className="av-button primary" disabled={saving}>{saving?'Salvando…':editingCampaignId?'Salvar alterações':'Salvar campanha'}</button>{editingCampaignId&&<button type="button" className="av-button secondary" onClick={resetForm}>Cancelar edição</button>}</div>
       </form>
     </section>
-    <section className="av-panel">
-      <div className="av-panel-title"><h2>Campanhas salvas</h2><span>{campaigns.length} registro(s)</span></div>
-      {loading ? <p className="av-empty">Consultando Supabase…</p> : campaigns.length === 0 ? <p className="av-empty">Nenhuma campanha cadastrada. Crie a primeira acima.</p> :
-        <div className="av-list">{campaigns.map(campaign => {
-          const link = links.find(item => item.campaign_id === campaign.id);
-          const clicks = link ? (clickCounts[link.id] ?? 0) : 0;
-          return <article className="av-list-row" key={campaign.id}>
-            <div className="av-list-main"><strong>{campaign.name}</strong><small>{campaign.status} · {campaign.channel} · {campaign.posting_interval_seconds}s de intervalo</small><p>{campaign.copy_text || 'Sem copy cadastrada.'}</p>
-              {link && <div className="av-track-row"><code>{CLICK_URL}{link.code}</code><button className="av-icon-button" title="Copiar link rastreável" onClick={() => void navigator.clipboard.writeText(CLICK_URL + link.code)}><Copy size={15}/></button><button className="av-icon-button" title="Compartilhar no WhatsApp" onClick={() => window.open('https://wa.me/?text='+encodeURIComponent((campaign.copy_text||'')+'\\n\\n'+CLICK_URL+link.code),'_blank','noopener,noreferrer')}><MessageCircle size={15}/></button><span>{clicks} clique(s) registrado(s)</span><a href={LEAD_URL + link.code} target="_blank" rel="noreferrer">Abrir formulário de lead</a><button className="av-icon-button" title="Copiar formulário de lead" onClick={() => void navigator.clipboard.writeText(LEAD_URL + link.code)}><Copy size={15}/></button></div>}{leadsByCampaign[campaign.id] && <p className="av-lead-summary"><strong>{leadsByCampaign[campaign.id].count} lead(s) com consentimento</strong>{leadsByCampaign[campaign.id].cities.length ? ` · Cidades informadas: ${leadsByCampaign[campaign.id].cities.join(', ')}` : ' · Nenhuma cidade informada ainda'}</p>}
-            </div>
-            <button className="av-button secondary small" onClick={() => { setScheduleOpen(scheduleOpen === campaign.id ? null : campaign.id); setScheduleStart(localDateTimeValue(new Date(Date.now()+3600000))); }}><CalendarClock size={15}/> Lembretes</button>
-            {scheduleOpen === campaign.id && <div className="av-schedule">
-              <label>Quantidade de lembretes<input type="number" min="1" max="30" value={scheduleCount} onChange={e => setScheduleCount(Number(e.target.value))}/></label>
-              <label>Primeiro horário<input type="datetime-local" value={scheduleStart} onChange={e => setScheduleStart(e.target.value)}/></label>
-              <button className="av-button primary small" onClick={() => void generateReminders(campaign)}>Salvar no calendário</button>
-              <small>Serão criados lembretes persistentes. Nenhuma postagem será enviada automaticamente.</small>
-            </div>}
-          </article>;
-        })}</div>}
+    <section className="av-panel"><div className="av-panel-title"><h2>Campanhas salvas</h2><span>{campaigns.length} registro(s)</span></div>
+      {loading?<p className="av-empty">Consultando Supabase…</p>:!campaigns.length?<p className="av-empty">Nenhuma campanha cadastrada.</p>:<div className="av-list">{campaigns.map(c=>{
+        const link=links.find(x=>x.campaign_id===c.id),clicks=link?(clickCounts[link.id]||0):0,paused=c.status==='paused'&&c.paused_until&&new Date(c.paused_until).getTime()>clock,remaining=paused?Math.max(0,Math.ceil((new Date(c.paused_until!).getTime()-clock)/1000)):0;
+        return <article className="av-list-row" key={c.id}><div className="av-list-main"><strong>{c.name}</strong><small>{c.status} · {c.channel} · {c.posting_interval_seconds}s entre tarefas</small>{c.image_url&&<img src={c.image_url} alt="Imagem da campanha" className="av-campaign-thumb"/>}<p>{c.copy_text||'Sem texto cadastrado.'}</p>{paused&&<p className="av-cooldown">Pausa ativa · retoma em {Math.floor(remaining/60)}m {remaining%60}s</p>}{link&&<div className="av-track-row"><code>{CLICK_URL}{link.code}</code><button className="av-icon-button" title="Copiar link rastreável" onClick={()=>void navigator.clipboard.writeText(CLICK_URL+link.code)}><Copy size={15}/></button><span>{clicks} clique(s) registrados no link geral</span></div>}{leadsByCampaign[c.id]&&<p className="av-lead-summary">{leadsByCampaign[c.id].count} lead(s) que preencheram o formulário com consentimento</p>}</div>
+          <div className="av-row-actions"><button className="av-button secondary small" onClick={()=>editCampaign(c)}>Editar</button><button className="av-button secondary small" onClick={()=>void setCampaignStatus(c,c.status==='paused'?'active':'paused')}>{c.status==='paused'?'Retomar':'Pausar'}</button><button className="av-button secondary small" onClick={()=>{setScheduleOpen(scheduleOpen===c.id?null:c.id);setScheduleStart(localDateTimeValue(new Date(Date.now()+3600000)));setSelectedCommunityIds([]);}}>Fila de grupos</button><button className="av-icon-button danger" title="Excluir campanha" onClick={()=>void removeCampaign(c)}><Trash2 size={15}/></button></div>
+          {scheduleOpen===c.id&&<div className="av-schedule"><strong>Montar fila por grupo</strong><label>Quantidade de tarefas por grupo<input type="number" min="1" max="100" value={scheduleCount} onChange={e=>setScheduleCount(Number(e.target.value))}/></label><label>Início da fila<input type="datetime-local" value={scheduleStart} onChange={e=>setScheduleStart(e.target.value)}/></label><p className="av-note">{approvedCommunities.length} grupo(s) aprovado(s). Selecione os grupos que permitem divulgação. Cada grupo receberá um link de rastreio exclusivo.</p><div className="av-community-picker">{approvedCommunities.map(g=><label key={g.id}><input type="checkbox" checked={selectedCommunityIds.includes(g.id)} onChange={e=>setSelectedCommunityIds(v=>e.target.checked?[...v,g.id]:v.filter(id=>id!==g.id))}/><span>{g.name} · {g.topic}</span></label>)}{!approvedCommunities.length&&<small>Não há grupos aprovados. Revise os grupos em “Grupos e oportunidades” primeiro.</small>}</div><button className="av-button primary small" onClick={()=>void generateReminders(c)}>Criar fila persistente</button><small>As tarefas e o status permanecem salvos após atualizar a página. Publicação manual.</small></div>}
+        </article>;
+      })}</div>}
     </section>
-    <section className="av-panel">
-      <div className="av-panel-title"><h2>Cliques reais — últimos 7 dias</h2><span>Eventos registrados pelo link de rastreamento</span></div>
-      {clickSeries.length === 0 ? <p className="av-empty">Ainda não há cliques registrados nos links desta campanha. Os dados aparecerão após o primeiro acesso real.</p> :
-        <div className="av-click-chart">{clickSeries.map(day => {
-          const max = Math.max(1, ...clickSeries.map(item => item.count));
-          return <div className="av-click-day" key={day.label}><span>{day.count}</span><i style={{ height: `${Math.max(3, day.count / max * 100)}%` }}/><small>{day.label}</small></div>;
-        })}</div>}
-      <p className="av-note">O rastreamento registra cliques, origem de referência e tipo de dispositivo. A cidade não é inferida por IP; poderá ser exibida quando a pessoa informar voluntariamente sua cidade em um formulário de lead.</p>
+    <section className="av-panel"><div className="av-panel-title"><h2>Atividades da fila</h2><span>{scheduledPosts.length} tarefa(s) salvas</span></div><p className="av-note">Esta fila é persistida no Supabase. “Pendente” aguarda sua ação; “Aguardando autorização” significa que você solicitou aprovação ao administrador; “Postado” é uma confirmação manual. Não publicamos automaticamente em grupos privados ou arbitrários.</p>
+      {!scheduledPosts.length?<p className="av-empty">Nenhuma atividade na fila.</p>:<div className="av-list">{scheduledPosts.map(post=>{const group=communities.find(g=>g.id===post.community_id),stats=postClickStats[post.id],paused=campaigns.find(c=>c.id===post.campaign_id)?.status==='paused';return <article className="av-list-row" key={post.id}><div className="av-list-main"><strong>{campaigns.find(c=>c.id===post.campaign_id)?.name||'Campanha'}{group?' — '+group.name:''}</strong><small>{new Date(post.scheduled_at).toLocaleString('pt-BR')} · {statusText(post.status)}</small><p>{post.copy_snapshot}</p>{post.media_url&&<img src={post.media_url} alt="Mídia da tarefa" className="av-campaign-thumb"/>}{post.tracking_link_id&&<small>{stats?.count||0} clique(s) neste grupo · origem: {stats?.hosts.join(', ')||'ainda não identificada'}</small>}{post.execution_note&&<small>{post.execution_note}</small>}{post.published_url&&<a href={post.published_url} target="_blank" rel="noreferrer">Abrir publicação registrada <ExternalLink size={12}/></a>}</div>
+        <div className="av-row-actions">{post.status==='scheduled'&&<><button className="av-button secondary small" onClick={()=>void markAwaitingAdmin(post)}>Aguardando autorização</button><button className="av-button primary small" disabled={!!paused} onClick={()=>void markPostPublished(post)}>Registrar postado</button><button className="av-button secondary small" onClick={()=>void cancelPost(post)}>Cancelar</button></>}{post.status==='awaiting_admin'&&<button className="av-button primary small" disabled={!!paused} onClick={()=>void markPostPublished(post)}>Registrar postado</button>}</div>
+      </article>;})}</div>}
     </section>
-    <section className="av-panel">
-      <div className="av-panel-title"><h2>Calendário de publicações</h2><span>{scheduledPosts.filter(post => post.status === 'scheduled').length} lembrete(s) pendente(s)</span></div>
-      <p className="av-note">Os horários permanecem salvos mesmo após atualizar a página. A publicação é manual: abra o grupo ou canal, publique respeitando as regras e depois registre o resultado aqui.</p>
-      {scheduledPosts.length === 0 ? <p className="av-empty">Nenhum lembrete agendado.</p> :
-        <div className="av-list">{scheduledPosts.map(post => {
-          const campaign = campaigns.find(item => item.id === post.campaign_id);
-          return <article className="av-list-row" key={post.id}>
-            <div className="av-list-main"><strong>{campaign?.name ?? 'Campanha'}</strong><small>{new Date(post.scheduled_at).toLocaleString('pt-BR')} · {post.status}</small><p>{post.copy_snapshot}</p>{post.published_url && <a href={post.published_url} target="_blank" rel="noreferrer">Ver publicação registrada <ExternalLink size={12}/></a>}</div>
-            {post.status === 'scheduled' && <div className="av-row-actions"><button className="av-button primary small" onClick={() => void markPostPublished(post)}>Registrar publicado</button><button className="av-button secondary small" onClick={() => void cancelPost(post)}>Cancelar</button></div>}
-          </article>;
-        })}</div>}
-    </section>
+    <section className="av-panel"><div className="av-panel-title"><h2>Cliques reais — últimos 7 dias</h2><span>Eventos de rastreamento</span></div>{clickSeries.length===0?<p className="av-empty">Ainda não há cliques nos links destas campanhas.</p>:<div className="av-click-chart">{clickSeries.map(day=>{const max=Math.max(1,...clickSeries.map(x=>x.count));return <div className="av-click-day" key={day.label}><span>{day.count}</span><i style={{height:Math.max(3,day.count/max*100)+'%'}}/><small>{day.label}</small></div>;})}</div>}<p className="av-note">O sistema mostra horário, dispositivo e domínio de referência quando disponíveis. Não identifica o perfil pessoal do Facebook que clicou: a plataforma não fornece essa identidade por um clique externo. Nome e contato só aparecem se a pessoa preencher voluntariamente o formulário de lead.</p></section>
   </div>;
 }
 
