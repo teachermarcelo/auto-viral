@@ -80,6 +80,8 @@ Deno.serve(async (req: Request) => {
   if (destination.hostname.toLowerCase() === "pay.kiwify.com.br") {
     if (link.campaign_id) destination.searchParams.set("utm_campaign", String(link.campaign_id));
     destination.searchParams.set("utm_source", "autoviral");
+    destination.searchParams.set("src", "autoviral");
+    destination.searchParams.set("sck", "av:" + String(link.campaign_id || "") + ":" + code);
     destination.searchParams.set("utm_medium", "organic");
     destination.searchParams.set("utm_content", code);
   }
