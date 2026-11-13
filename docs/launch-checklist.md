@@ -39,7 +39,7 @@ A tela Posts oferece o botão “Publicar Story agora” para registros compatí
 
 ## WhatsApp
 
-A plataforma pode criar links e textos para compartilhamento e, com WhatsApp Business Platform, enviar mensagens individuais para pessoas que deram consentimento e dentro das regras de templates/janelas da Meta. A API oficial não permite publicar automaticamente em grupos comuns do WhatsApp. O compartilhamento em grupos deve ser feito por um membro do grupo, respeitando as regras de cada comunidade.
+A plataforma pode criar links e textos para compartilhamento e, com WhatsApp Business Platform, enviar mensagens individuais para pessoas que deram consentimento e dentro das regras de templates/janelas da Meta. A Meta já oferece uma Groups API, mas ela é um produto separado, com elegibilidade e fluxo de criação/convite de grupos; ela não autoriza o AutoViral a entrar e publicar em qualquer grupo existente do usuário. Para divulgar nas comunidades existentes, a plataforma abre o compartilhamento do WhatsApp com o link rastreável, e o usuário escolhe os grupos em que tem autorização para compartilhar.
 
 ## Critério de comprovação
 
