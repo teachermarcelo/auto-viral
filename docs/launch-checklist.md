@@ -20,8 +20,8 @@ A Edge Function `av-kiwify-webhook` recebe eventos POST da Kiwify, valida um tok
 Configuração:
 1. No Dashboard Kiwify, abra Apps → Webhooks → Criar Webhook.
 2. Selecione os dois produtos e os eventos de compra aprovada, reembolso e chargeback.
-3. Use a URL privada fornecida ao operador pelo AutoViral (não publique o token em repositórios, capturas de tela ou mensagens públicas).
-4. Use o botão de teste da Kiwify e confirme o evento em Analytics após receber um evento real.
+3. Use a URL pública do endpoint `https://nuyzvpkvawixidotuuio.supabase.co/functions/v1/av-kiwify-webhook`. Depois de criar o webhook, copie o token de segurança gerado pela Kiwify e salve-o em AutoViral → Integrações → Rastreamento de vendas Kiwify. O token fica guardado no Supabase Vault; não o publique em repositórios, capturas de tela ou mensagens.
+4. Use o botão de teste da Kiwify e confirme a resposta 2xx nos logs do webhook. O teste técnico não cria uma venda real; confirme vendas em Analytics somente após um pedido real aprovado.
 5. Se um evento falhar, confira o log do webhook na Kiwify e reenvie-o.
 
 A Kiwify envia payload JSON e espera resposta HTTP 2xx; eventos sem resposta 2xx podem ser reenviados. Não cadastre o endpoint com redirecionamento 3xx.
