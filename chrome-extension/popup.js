@@ -2,7 +2,7 @@ const GROUPS = "autoViralDiscoveredGroups";
 const $ = selector => document.querySelector(selector);
 const safe = value => String(value ?? "").replace(/[&<>"']/g, char => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]));
 async function getState() {
-  return chrome.storage.local.get({[GROUPS]:[],autoViralAuthSession:null,autoViralSentUrls:[],autoViralMapperPaused:false,autoViralLastSync:null});
+  return chrome.storage.local.get({[GROUPS]:[],autoViralAuthSession:null,autoViralSentUrls:[],autoViralMapperPaused:false,autoViralLastSync:null,autoViralMapperMeta:{}});
 }
 function status(message, kind = "") {
   const node = $("#status");
@@ -15,6 +15,7 @@ async function render() {
   const sent = new Set(state.autoViralSentUrls || []);
   const pending = groups.filter(group => !sent.has(group.url));
   const session = state.autoViralAuthSession;
+  const meta = state.autoViralMapperMeta || {};
   $("#total").textContent = groups.length;
   $("#pending").textContent = pending.length;
   $("#sent").textContent = groups.length - pending.length;
@@ -25,6 +26,9 @@ async function render() {
   $("#connection").textContent = session ? "Sessão reconhecida" : "Aguardando login no site";
   $("#connection").className = "pill " + (session ? "on" : "off");
   $("#account").textContent = session?.user?.email || "Sessão do AutoViral conectada";
+  $("#send").disabled = !session || pending.length === 0;
+  $("#send").textContent = !session ? "Conecte sua conta para sincronizar" : pending.length ? "Enviar " + pending.length + " grupo(s) para a plataforma" : "Todos os grupos já foram enviados";
+  $("#scan-info").textContent = meta.lastScanAt ? "Última leitura: " + new Date(meta.lastScanAt).toLocaleString("pt-BR") + " · " + (meta.lastAdded || 0) + " novo(s) · " + (meta.matchingLinks || 0) + " link(s) de grupo na página" : "Aguardando primeira leitura do Facebook.";
   $("#login-box").classList.toggle("hidden", !!session);
   $("#connected-box").classList.toggle("hidden", !session);
   const last = state.autoViralLastSync;
@@ -54,6 +58,16 @@ $("#scan").addEventListener("click", async () => {
 $("#connect").addEventListener("click", async () => {
   await chrome.tabs.create({url:"https://teachermarcelo.github.io/auto-viral/"});
   status("Entre na plataforma. A extensão reconhecerá a sessão automaticamente.");
+});
+$("#send").addEventListener("click", async () => {
+  $("#send").disabled = true;
+  status("Enviando grupos mapeados para Grupos e oportunidades…");
+  try {
+    const result = await chrome.runtime.sendMessage({type:"AUTOVIRAL_SYNC_NOW"});
+    if (!result?.ok) status(result?.error || "Falha ao sincronizar.", "error");
+    else status(result.last?.status === "success" ? (result.last.count || 0) + " grupo(s) enviados ou já atualizados na plataforma." : result.last?.message || "Sincronização concluída.", result.last?.status === "success" ? "success" : "");
+  } catch (error) { status(String(error?.message || error), "error"); }
+  await render();
 });
 $("#disconnect").addEventListener("click", async () => {
   await chrome.storage.local.remove("autoViralAuthSession");
