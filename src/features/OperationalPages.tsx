@@ -245,8 +245,8 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
         const cancelled = tasks.filter(p => p.status === 'cancelled').length;
         const postedGroups = new Set(tasks.filter(p => p.status === 'published' && p.community_id).map(p => p.community_id)).size;
         const percent = run.total_tasks ? Math.round(published / run.total_tasks * 100) : 0;
-        const active = ['running','queued'].includes(run.status) && (pending + waiting > 0);
-        const state = run.status === 'paused' ? 'paused' : active ? 'active' : run.status === 'completed' ? 'completed' : (failed > 0 ? 'failed' : 'completed');
+        const active = ['running','queued'].includes(run.status);
+        const state = run.status === 'paused' ? 'paused' : active ? 'active' : run.status === 'failed' || (failed > 0 && run.status !== 'completed') ? 'failed' : 'completed';
         return {run,tasks,published,pending,waiting,failed,cancelled,postedGroups,percent,state};
       });
       const counts = {active:runStats.filter(x=>x.state==='active').length,paused:runStats.filter(x=>x.state==='paused').length,completed:runStats.filter(x=>x.state==='completed').length,failed:runStats.filter(x=>x.state==='failed').length};
