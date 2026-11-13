@@ -17,7 +17,6 @@ type CommunityOption = { id:string; name:string; url:string; topic:string; statu
 
 const PROJECT_URL = 'https://nuyzvpkvawixidotuuio.supabase.co';
 const CLICK_URL = `${PROJECT_URL}/functions/v1/av-click?c=`;
-const LEAD_URL = `${PROJECT_URL}/functions/v1/av-lead-capture?c=`;
 const KIWIFY_WEBHOOK_URL = `${PROJECT_URL}/functions/v1/av-kiwify-webhook`;
 
 function validHttpUrl(value: string) {
@@ -41,7 +40,6 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
   const [campaigns,setCampaigns]=useState<Campaign[]>([]);
   const [links,setLinks]=useState<TrackingLink[]>([]);
   const [communities,setCommunities]=useState<CommunityOption[]>([]);
-  const [clickCounts,setClickCounts]=useState<Record<string,number>>({});
   const [postClickStats,setPostClickStats]=useState<Record<string,{count:number;hosts:string[];lastClick:string|null}>>({});
   const [clickSeries,setClickSeries]=useState<{label:string;count:number}[]>([]);
   const [scheduledPosts,setScheduledPosts]=useState<ScheduledPost[]>([]);
@@ -98,16 +96,15 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
     if(linkIds.length){
       const since=new Date(Date.now()-6*86400000).toISOString();
       const events=await supabase.from('av_tracking_events').select('tracking_link_id,created_at,referrer_host,device_type').in('tracking_link_id',linkIds).eq('event_type','click').gte('created_at',since);
-      const counts:Record<string,number>={},daily:Record<string,number>={},postStats:Record<string,{count:number;hosts:string[];lastClick:string|null}>={};
+      const daily:Record<string,number>={},postStats:Record<string,{count:number;hosts:string[];lastClick:string|null}>={};
       for(const event of events.data??[]){
-        counts[event.tracking_link_id]=(counts[event.tracking_link_id]??0)+1;
         const day=new Date(event.created_at).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});daily[day]=(daily[day]??0)+1;
         const post=(postr.data??[]).find((p:any)=>p.tracking_link_id===event.tracking_link_id);
         if(post){postStats[post.id]??={count:0,hosts:[],lastClick:null};postStats[post.id].count++;if(event.referrer_host&&!postStats[post.id].hosts.includes(event.referrer_host))postStats[post.id].hosts.push(event.referrer_host);if(!postStats[post.id].lastClick||event.created_at>postStats[post.id].lastClick!)postStats[post.id].lastClick=event.created_at;}
       }
-      setClickCounts(counts);setPostClickStats(postStats);
+      setPostClickStats(postStats);
       setClickSeries(Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(6-i));const label=d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});return{label,count:daily[label]??0};}));
-    }else{setClickCounts({});setPostClickStats({});setClickSeries([]);}
+    }else{setPostClickStats({});setClickSeries([]);}
     setLoading(false);
   },[workspaceId]);
   useEffect(()=>{void load();},[load]);
