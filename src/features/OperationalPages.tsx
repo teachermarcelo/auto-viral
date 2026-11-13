@@ -183,8 +183,7 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
     if(error){setMessage('Não foi possível salvar a fila: '+error.message);return;}
     setMessage(tasks.length+' tarefa(s) persistida(s). A publicação em grupos continua manual; o temporizador controla o ritmo da fila, não envia posts automaticamente.');setScheduleOpen(null);setSelectedCommunityIds([]);await load();
   }
-  const targetPlatform=campaignChannel==='whatsapp'?'whatsapp':'facebook';
-  const approvedCommunities=communities.filter(x=>x.status==='approved'&&x.platform===targetPlatform);
+  const approvedFor=(channel:string)=>communities.filter(x=>x.status==='approved'&&x.platform===(channel==='whatsapp'?'whatsapp':'facebook'));
   const previewImage=imageFile?URL.createObjectURL(imageFile):form.image_url||products.find(p=>p.id===form.product_id)?.image_url||null;
   const statusText=(s:string)=>s==='scheduled'?'Pendente':s==='awaiting_admin'?'Aguardando autorização do administrador':s==='published'?'Postado':s==='cancelled'?'Cancelado':s==='failed'?'Falhou':s;
   return <div className="av-page">
@@ -206,7 +205,7 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
     </section>
     <section className="av-panel"><div className="av-panel-title"><h2>Campanhas salvas</h2><span>{campaigns.length} registro(s)</span></div>
       {loading?<p className="av-empty">Consultando Supabase…</p>:!campaigns.length?<p className="av-empty">Nenhuma campanha cadastrada.</p>:<div className="av-list">{campaigns.map(c=>{
-        const link=links.find(x=>x.campaign_id===c.id),clicks=link?(clickCounts[link.id]||0):0,paused=c.status==='paused'&&c.paused_until&&new Date(c.paused_until).getTime()>clock,remaining=paused?Math.max(0,Math.ceil((new Date(c.paused_until!).getTime()-clock)/1000)):0;
+        const link=links.find(x=>x.campaign_id===c.id),clicks=link?(clickCounts[link.id]||0):0,approvedCommunities=approvedFor(c.channel),paused=c.status==='paused'&&c.paused_until&&new Date(c.paused_until).getTime()>clock,remaining=paused?Math.max(0,Math.ceil((new Date(c.paused_until!).getTime()-clock)/1000)):0;
         return <article className="av-list-row" key={c.id}><div className="av-list-main"><strong>{c.name}</strong><small>{c.status} · {c.channel} · {c.posting_interval_seconds}s entre tarefas</small>{c.image_url&&<img src={c.image_url} alt="Imagem da campanha" className="av-campaign-thumb"/>}<p>{c.copy_text||'Sem texto cadastrado.'}</p>{paused&&<p className="av-cooldown">Pausa ativa · retoma em {Math.floor(remaining/60)}m {remaining%60}s</p>}{link&&<div className="av-track-row"><code>{CLICK_URL}{link.code}</code><button className="av-icon-button" title="Copiar link rastreável" onClick={()=>void navigator.clipboard.writeText(CLICK_URL+link.code)}><Copy size={15}/></button><span>{clicks} clique(s) registrados no link geral</span></div>}{leadsByCampaign[c.id]&&<p className="av-lead-summary">{leadsByCampaign[c.id].count} lead(s) que preencheram o formulário com consentimento</p>}</div>
           <div className="av-row-actions"><button className="av-button secondary small" onClick={()=>editCampaign(c)}>Editar</button><button className="av-button secondary small" onClick={()=>void setCampaignStatus(c,c.status==='paused'?'active':'paused')}>{c.status==='paused'?'Retomar':'Pausar'}</button><button className="av-button secondary small" onClick={()=>{setScheduleOpen(scheduleOpen===c.id?null:c.id);setScheduleStart(localDateTimeValue(new Date(Date.now()+3600000)));setSelectedCommunityIds([]);}}>Fila de grupos</button><button className="av-icon-button danger" title="Excluir campanha" onClick={()=>void removeCampaign(c)}><Trash2 size={15}/></button></div>
           {scheduleOpen===c.id&&<div className="av-schedule"><strong>Montar fila por grupo</strong><label>Quantidade de tarefas por grupo<input type="number" min="1" max="100" value={scheduleCount} onChange={e=>setScheduleCount(Number(e.target.value))}/></label><label>Início da fila<input type="datetime-local" value={scheduleStart} onChange={e=>setScheduleStart(e.target.value)}/></label><p className="av-note">{approvedCommunities.length} grupo(s) aprovado(s). Selecione os grupos que permitem divulgação. Cada grupo receberá um link de rastreio exclusivo.</p><div className="av-community-picker">{approvedCommunities.map(g=><label key={g.id}><input type="checkbox" checked={selectedCommunityIds.includes(g.id)} onChange={e=>setSelectedCommunityIds(v=>e.target.checked?[...v,g.id]:v.filter(id=>id!==g.id))}/><span>{g.name} · {g.topic}</span></label>)}{!approvedCommunities.length&&<small>Não há grupos aprovados. Revise os grupos em “Grupos e oportunidades” primeiro.</small>}</div><button className="av-button primary small" onClick={()=>void generateReminders(c)}>Criar fila persistente</button><small>As tarefas e o status permanecem salvos após atualizar a página. Publicação manual.</small></div>}
@@ -226,7 +225,7 @@ export function CommunitiesPage({ workspaceId }: { workspaceId: string | null })
   const [communities, setCommunities] = useState<Community[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
-  const [form, setForm] = useState({ name: '', url: '', topic: 'Psicopedagogia', rules_url: '', notes: '' });
+  const [form, setForm] = useState({ name: '', url: '', topic: 'Psicopedagogia', platform: 'facebook', rules_url: '', notes: '' });
 
   const load = useCallback(async () => {
     if (!supabase || !workspaceId) { setLoading(false); return; }
