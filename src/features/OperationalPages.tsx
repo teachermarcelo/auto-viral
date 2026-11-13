@@ -175,8 +175,9 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
   async function markAwaitingAdmin(post:ScheduledPost){if(!supabase||!workspaceId)return;const {error}=await supabase.from('av_campaign_posts').update({status:'awaiting_admin',execution_note:'Aguardando autorização do administrador do grupo.'}).eq('id',post.id).eq('workspace_id',workspaceId);if(error)setMessage(error.message);else await load();}
   async function openGroupForPost(post:ScheduledPost,group:CommunityOption|null){
     if(!group?.url){setMessage('Esta tarefa não tem um grupo vinculado.');return;}
-    const opened=window.open(group.url,'_blank','noopener,noreferrer');
+    const opened=window.open(group.url,'_blank');
     if(!opened){setMessage('O navegador bloqueou a abertura do grupo. Permita pop-ups para o AutoViral e tente novamente.');return;}
+    opened.opener=null;
     try{await navigator.clipboard.writeText(post.copy_snapshot||'');setMessage('Grupo aberto e texto copiado. Cole a postagem no Facebook e publique respeitando as regras do grupo.');}
     catch{setMessage('Grupo aberto. Copie o texto da postagem na própria tarefa e cole no Facebook.');}
     if(post.status==='scheduled')await markAwaitingAdmin(post);
@@ -391,8 +392,9 @@ export function CommunitiesPage({ workspaceId }: { workspaceId: string | null })
     if(!approvedSelectedGroups.length){setMessage('Selecione grupos do Facebook com status Aprovado para participação.');return;}
     const index=openQueueIndex%approvedSelectedGroups.length;
     const item=approvedSelectedGroups[index];
-    const tab=window.open(item.url,'_blank','noopener,noreferrer');
+    const tab=window.open(item.url,'_blank');
     if(!tab){setMessage('O navegador bloqueou a nova aba. Permita pop-ups para este site e tente novamente.');return;}
+    tab.opener=null;
     setMessage('Grupo aberto ('+(index+1)+' de '+approvedSelectedGroups.length+'): '+item.name+'. Faça a publicação manualmente conforme as regras do grupo.');
     setOpenQueueIndex(index+1);
   }
