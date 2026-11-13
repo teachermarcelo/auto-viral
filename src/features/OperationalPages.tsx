@@ -44,7 +44,8 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
   const [clickCounts,setClickCounts]=useState<Record<string,number>>({});
   const [postClickStats,setPostClickStats]=useState<Record<string,{count:number;hosts:string[];lastClick:string|null}>>({});
   const [clickSeries,setClickSeries]=useState<{label:string;count:number}[]>([]);
-  const [scheduledPosts,setScheduledPosts]=useState<ScheduledPost[]>([]);\n  const [runs,setRuns]=useState<CampaignRun[]>([]);
+  const [scheduledPosts,setScheduledPosts]=useState<ScheduledPost[]>([]);
+  const [runs,setRuns]=useState<CampaignRun[]>([]);
   const [leadsByCampaign,setLeadsByCampaign]=useState<Record<string,{count:number;cities:string[]}>>({});
   const [loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[message,setMessage]=useState('');
   const [scheduleOpen,setScheduleOpen]=useState<string|null>(null),[scheduleCount,setScheduleCount]=useState(1);
@@ -62,7 +63,8 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
       supabase.from('av_products').select('id,name,image_url').eq('workspace_id',workspaceId).order('name'),
       supabase.from('av_campaigns').select('id,name,product_id,objective,status,channel,copy_text,destination_url,image_url,video_url,posting_interval_seconds,pause_after_posts,pause_duration_minutes,paused_until,posts_since_pause').eq('workspace_id',workspaceId).order('created_at',{ascending:false}),
       supabase.from('av_tracking_links').select('id,campaign_id,code,destination_url,label').eq('workspace_id',workspaceId).order('created_at',{ascending:false}),
-      supabase.from('av_campaign_posts').select('id,campaign_id,campaign_run_id,scheduled_at,status,copy_snapshot,destination_url,published_url,channel,media_url,community_id,tracking_link_id,execution_note').eq('workspace_id',workspaceId).order('scheduled_at',{ascending:true}),\n      supabase.from('av_campaign_runs').select('id,campaign_id,name,status,total_groups,total_tasks,created_at,paused_until').eq('workspace_id',workspaceId).order('created_at',{ascending:false}),
+      supabase.from('av_campaign_posts').select('id,campaign_id,campaign_run_id,scheduled_at,status,copy_snapshot,destination_url,published_url,channel,media_url,community_id,tracking_link_id,execution_note').eq('workspace_id',workspaceId).order('scheduled_at',{ascending:true}),
+      supabase.from('av_campaign_runs').select('id,campaign_id,name,status,total_groups,total_tasks,created_at,paused_until').eq('workspace_id',workspaceId).order('created_at',{ascending:false}),
       supabase.from('av_leads').select('campaign_id,city').eq('workspace_id',workspaceId),
       supabase.from('av_communities').select('id,name,url,topic,status,platform').eq('workspace_id',workspaceId).order('name')
     ]);
@@ -81,7 +83,8 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
     setProducts((pr.data??[]) as ProductOption[]);
     setCampaigns(campaignRows);
     setLinks((lr.data??[]) as TrackingLink[]);
-    setScheduledPosts((postr.data??[]) as ScheduledPost[]);\n    setRuns((runr.data??[]) as CampaignRun[]);
+    setScheduledPosts((postr.data??[]) as ScheduledPost[]);
+    setRuns((runr.data??[]) as CampaignRun[]);
     setCommunities((communityR.data??[]) as CommunityOption[]);
     const leadStats:Record<string,{count:number;cities:string[]}>={};
     for(const lead of leadR.data??[]){if(!lead.campaign_id)continue;leadStats[lead.campaign_id]??={count:0,cities:[]};leadStats[lead.campaign_id].count++;if(lead.city&&!leadStats[lead.campaign_id].cities.includes(lead.city))leadStats[lead.campaign_id].cities.push(lead.city);}
