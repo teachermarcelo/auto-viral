@@ -1,42 +1,46 @@
-# AutoViral AI — Mapeador de Grupos (0.4.2)
+# AutoViral AI — Mapeador de Grupos (0.4.3)
 
-Extensão Chrome Manifest V3 que identifica URLs de grupos públicos exibidos nos resultados carregados pelo próprio usuário e sincroniza os registros com `av_communities` no workspace autenticado.
+Extensão Chrome Manifest V3 para mapear links de grupos públicos que aparecem nos resultados carregados pelo próprio usuário no Facebook e sincronizá-los com a tabela `av_communities` do workspace conectado.
 
 ## Instalação / atualização
 
-1. Baixe o artefato ZIP **autoviral-chrome-extension** na execução mais recente do workflow **Package AutoViral Chrome Extension** do repositório.
-2. Extraia o ZIP em uma pasta local permanente.
-3. Abra `chrome://extensions` no Chrome.
-4. Ative **Modo do desenvolvedor**.
-5. Se já houver uma versão antiga, remova-a. Clique em **Carregar sem compactação** e selecione a pasta extraída que contém `manifest.json`.
-6. Fixe o ícone AutoViral na barra do Chrome.
+1. Baixe o ZIP `autoviral-chrome-extension` na execução mais recente do workflow **Package AutoViral Chrome Extension** do repositório.
+2. Extraia o ZIP em uma pasta local.
+3. Abra `chrome://extensions`, ative **Modo do desenvolvedor**, remova a versão anterior e clique em **Carregar sem compactação**.
+4. Selecione a pasta extraída que contém `manifest.json`.
+5. Entre no AutoViral AI em `https://teachermarcelo.github.io/auto-viral/` na mesma instalação do Chrome.
+6. Abra o Facebook e pesquise grupos públicos relacionados ao seu produto. Role os resultados para carregar mais cartões.
+7. Abra o popup da extensão: veja quantos grupos foram encontrados e clique em **Enviar grupos para a plataforma**. A sincronização automática também permanece ativa.
 
-## Primeiro uso
+## Pesquisas sugeridas para os produtos educacionais
 
-1. Abra o AutoViral em `https://teachermarcelo.github.io/auto-viral/` e entre na conta.
-2. Mantenha a extensão instalada. O arquivo `platform-bridge.js` identifica a sessão ativa do Supabase no domínio da plataforma e a compartilha diretamente com o service worker da extensão; não digite novamente a senha no popup.
-3. Abra o Facebook e pesquise grupos públicos relacionados ao seu nicho.
-4. Role os resultados normalmente para que a página carregue os links.
-5. Abra o popup para acompanhar a fila, pausar/retomar ou solicitar nova leitura.
-6. Os grupos capturados são sincronizados automaticamente para o workspace autenticado. Consulte **Grupos e oportunidades** na plataforma.
+Faça uma pesquisa por vez no Facebook e role os resultados:
+- grupos de professores alfabetização
+- atividades de alfabetização educação infantil
+- professores educação infantil atividades
+- atividades pedagógicas para imprimir
+- coordenação motora educação infantil
+- psicopedagogia professores
+- recursos pedagógicos para professores
+- atividades para anos iniciais
 
-## Como funciona
+A extensão só captura links que o Facebook já mostrou na página carregada. Pesquise outros termos para ampliar a cobertura; não há promessa de capturar todos os grupos existentes.
 
-- Captura somente links de grupos públicos que já aparecem no DOM visível da página carregada.
-- Deduplicação local por URL; fila limitada aos 1.500 registros mais recentes.
-- A sincronização usa Supabase Auth, chave publicável e JWT do usuário; a extensão não contém chave service-role.
-- Os registros são gravados em `av_communities`, com status inicial `to_review`.
-- A sessão é renovada pelo Supabase quando necessário. Desconectar a extensão remove a sessão local.
-- A captura depende de o Chrome, a sessão e a aba estarem ativos; não executa quando o navegador está fechado.
+## O que é enviado
 
-## Limites e conformidade
+Cada registro inclui nome estimado a partir do cartão visível, URL do grupo, termo de pesquisa quando disponível, URL da página de origem, data da captura e trecho público do cartão para ajudar a revisar o contexto. A extensão não coleta listas de membros, perfis individuais, mensagens ou conteúdo privado.
 
-- Não coleta membros, perfis, mensagens ou dados de grupos privados.
-- Não entra em grupos, não curte, comenta, publica ou envia mensagens.
-- Não contorna controles, bloqueios, CAPTCHA ou limites do Facebook.
-- O mapeamento depende dos resultados que o próprio Facebook disponibiliza e carrega na página; não há garantia de capturar resultados que não foram exibidos.
-- Revise as regras de cada grupo antes de qualquer divulgação. A extensão não realiza disparos em massa.
+Os grupos são salvos no AutoViral em **Grupos e oportunidades**, com status inicial **Revisar regras** (`to_review`). Antes de divulgar, abra cada grupo, leia as regras e só marque como aprovado quando a divulgação for permitida.
 
-## Validação automatizada
+## Segurança e limites
 
-O workflow valida JSON do manifesto, existência de todos os arquivos referenciados, sintaxe JavaScript e criação do ZIP. Isso valida o pacote, mas não substitui um teste manual com a conta e o Chrome do usuário.
+- A extensão usa a sessão autenticada do Supabase do próprio AutoViral; não pede sua senha no popup.
+- Não contém service-role key.
+- Não entra em grupos, não publica, não curte, não comenta e não envia mensagens.
+- Não contorna CAPTCHA, bloqueios ou limites da plataforma.
+- A sincronização depende de o Chrome estar aberto e da sessão válida.
+- O mapeamento é de grupos públicos visíveis na página; não há acesso a resultados não carregados.
+
+## Validação
+
+O workflow do repositório verifica o build do frontend e empacota a extensão. O teste final de captura/sincronização exige executar o Chrome conectado à sua conta do Facebook e ao workspace AutoViral.
