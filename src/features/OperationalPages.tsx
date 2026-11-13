@@ -228,37 +228,42 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
   async function generateReminders(campaign:Campaign){
     if(generatingRunRef.current)return;
     if(!supabase||!workspaceId||!campaign.copy_text){setMessage('Salve uma postagem completa antes de criar a fila.');return;}
-    generatingRunRef.current=true;setGeneratingRun(true);
     const targetPlatform=campaign.channel==='whatsapp'?'whatsapp':'facebook';
     const selectedTargets=communities.filter(x=>selectedCommunityIds.includes(x.id)&&x.status==='approved'&&x.platform===targetPlatform);
     const targets=selectedTargets.slice(0,Math.max(1,Math.min(263,Number(groupLimit)||1)));
     if(['facebook_group','whatsapp'].includes(campaign.channel)&&!targets.length){setMessage('Selecione pelo menos um grupo aprovado em Grupos e oportunidades.');return;}
     const count=Math.min(100,Math.max(1,Number(scheduleCount)||1)),start=new Date(scheduleStart);
     if(!Number.isFinite(start.getTime())){setMessage('Data e horário inválidos.');return;}
+    const recentCutoff=new Date(Date.now()-120000).toISOString();
+    const {data:recentRuns,error:recentError}=await supabase.from('av_campaign_runs').select('id,created_at,status').eq('workspace_id',workspaceId).eq('campaign_id',campaign.id).in('status',['running','queued','paused']).gte('created_at',recentCutoff).limit(1);
+    if(recentError){setMessage('Não foi possível verificar execuções anteriores: '+recentError.message);return;}
+    if(recentRuns?.length){setMessage('Já existe uma fila recente para esta campanha. Abra a execução existente para evitar duplicidade.');return;}
+    generatingRunRef.current=true;setGeneratingRun(true);setMessage('');
     const pauseEvery=Math.max(0,campaign.pause_after_posts||0),pauseMs=Math.max(0,campaign.pause_duration_minutes||0)*60000,interval=Math.max(0,campaign.posting_interval_seconds||0)*1000;
     const tasks:any[]=[];
     const destinations=targets.length?targets:[null];
-    const recentDuplicate=runs.find(r=>r.campaign_id===campaign.id&&['running','queued','paused'].includes(r.status)&&Date.now()-new Date(r.created_at).getTime()<120000);
-    if(recentDuplicate){setMessage('Já existe uma execução recente desta campanha. Abra a execução existente para evitar duplicidade.');generatingRunRef.current=false;setGeneratingRun(false);return;}
-    const runResult=await supabase.from('av_campaign_runs').insert({workspace_id:workspaceId,campaign_id:campaign.id,name:'Fila '+new Date().toLocaleString('pt-BR'),status:'queued',total_groups:targets.length,total_tasks:targets.length*count,started_at:new Date().toISOString()}).select('id').single();
+    const runResult=await supabase.from('av_campaign_runs').insert({workspace_id:workspaceId,campaign_id:campaign.id,name:'Fila '+new Date().toLocaleString('pt-BR'),status:'queued',total_groups:targets.length,total_tasks:targets.length*count}).select('id').single();
     if(runResult.error){setMessage('Não foi possível criar a execução: '+runResult.error.message);generatingRunRef.current=false;setGeneratingRun(false);return;}
     const runId=runResult.data.id;
     for(const community of destinations){
       let next=start.getTime();
       for(let i=0;i<count;i++){
-        let trackingLinkId:string|null=null;
+        let trackingLinkId:string|null=null,trackingCode:string|null=null;
         if(community&&campaign.destination_url){
           const code=crypto.randomUUID().replaceAll('-','').slice(0,16);
-          const {data,error}=await supabase.from('av_tracking_links').insert({workspace_id:workspaceId,campaign_id:campaign.id,code,destination_url:campaign.destination_url,label:campaign.name+' — '+community.name}).select('id').single();
-          if(error){setMessage('Falha ao criar link exclusivo para '+community.name+': '+error.message);return;}
-          trackingLinkId=data.id;
+          const {data,error}=await supabase.from('av_tracking_links').insert({workspace_id:workspaceId,campaign_id:campaign.id,code,destination_url:campaign.destination_url,label:campaign.name+' — '+community.name}).select('id,code').single();
+          if(error){
+            await supabase.from('av_campaign_runs').update({status:'cancelled',completed_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq('id',runId).eq('workspace_id',workspaceId);
+            setMessage('Falha ao criar link exclusivo para '+community.name+': '+error.message);generatingRunRef.current=false;setGeneratingRun(false);return;
+          }
+          trackingLinkId=data.id;trackingCode=data.code;
         }
-        tasks.push({workspace_id:workspaceId,campaign_id:campaign.id,campaign_run_id:runId,community_id:community?.id||null,tracking_link_id:trackingLinkId,channel:campaign.channel,scheduled_at:new Date(next).toISOString(),status:'scheduled',copy_snapshot:campaign.copy_text,media_url:campaign.image_url||campaign.video_url,destination_url:trackingLinkId?CLICK_URL+(await supabase.from('av_tracking_links').select('code').eq('id',trackingLinkId).single()).data?.code:campaign.destination_url});
+        tasks.push({workspace_id:workspaceId,campaign_id:campaign.id,campaign_run_id:runId,community_id:community?.id||null,tracking_link_id:trackingLinkId,channel:campaign.channel,scheduled_at:new Date(next).toISOString(),status:'scheduled',copy_snapshot:campaign.copy_text,media_url:campaign.image_url||campaign.video_url,destination_url:trackingCode?CLICK_URL+trackingCode:campaign.destination_url});
         next+=interval;if(pauseEvery>0&&(i+1)%pauseEvery===0&&i+1<count)next+=pauseMs;
       }
     }
     const {error}=await supabase.from('av_campaign_posts').insert(tasks);
-    if(error){await supabase.from('av_campaign_runs').delete().eq('id',runId).eq('workspace_id',workspaceId);setMessage('Não foi possível salvar a fila: '+error.message);generatingRunRef.current=false;setGeneratingRun(false);return;}
+    if(error){await supabase.from('av_campaign_runs').update({status:'cancelled',completed_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq('id',runId).eq('workspace_id',workspaceId);setMessage('Não foi possível salvar a fila: '+error.message);generatingRunRef.current=false;setGeneratingRun(false);return;}
     setMessage('Fila criada: '+targets.length+' grupo(s), '+tasks.length+' tarefa(s). Abra cada grupo e confirme a publicação manualmente.');setScheduleOpen(null);setSelectedCommunityIds([]);generatingRunRef.current=false;setGeneratingRun(false);await load();window.setTimeout(()=>document.getElementById('campaign-runs')?.scrollIntoView({behavior:'smooth',block:'start'}),120);
   }
   const approvedFor=(channel:string)=>communities.filter(x=>x.status==='approved'&&x.platform===(channel==='whatsapp'?'whatsapp':'facebook'));
