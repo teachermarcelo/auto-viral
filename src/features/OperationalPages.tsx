@@ -445,7 +445,7 @@ export function PostsPage({ workspaceId }: { workspaceId: string | null }) {
     if (!supabase || !workspaceId) { setRows([]); setLoading(false); return; }
     setLoading(true); setError('');
     const [posts,campaigns] = await Promise.all([
-      supabase.from('av_campaign_posts').select('id,campaign_id,scheduled_at,status,copy_snapshot,destination_url,published_url').eq('workspace_id',workspaceId).order('scheduled_at',{ascending:false}).limit(200),
+      supabase.from('av_campaign_posts').select('id,campaign_id,scheduled_at,status,copy_snapshot,destination_url,published_url,channel,media_url').eq('workspace_id',workspaceId).order('scheduled_at',{ascending:false}).limit(200),
       supabase.from('av_campaigns').select('id,name').eq('workspace_id',workspaceId)
     ]);
     if(posts.error) setError(posts.error.message); else setRows(posts.data ?? []);
