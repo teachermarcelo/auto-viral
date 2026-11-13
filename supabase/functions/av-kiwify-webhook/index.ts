@@ -52,8 +52,12 @@ Deno.serve(async (req: Request) => {
       try { return checkoutCode && new URL(p.checkout_url).pathname.slice(1) === checkoutCode; } catch { return false; }
     }) || null;
   const tracking = obj(body.TrackingParameters || body.tracking_parameters);
-  const utmCampaign = String(tracking.utm_campaign || "").trim();
-  const utmContent = String(tracking.utm_content || "").trim();
+  const sck = String(tracking.sck || "").trim();
+  const sckParts = sck.split(":");
+  const sckCampaign = sckParts[0] === "av" ? (sckParts[1] || "") : "";
+  const sckContent = sckParts[0] === "av" ? (sckParts[2] || "") : "";
+  const utmCampaign = String(tracking.utm_campaign || sckCampaign).trim();
+  const utmContent = String(tracking.utm_content || sckContent).trim();
   let trackingLink: any = null;
   if (utmContent) {
     const { data } = await admin.from("av_tracking_links").select("id,campaign_id").eq("workspace_id", secret.workspace_id).eq("code", utmContent).maybeSingle();
@@ -88,7 +92,8 @@ Deno.serve(async (req: Request) => {
     utm_source: String(tracking.utm_source || "").slice(0, 80) || null,
     utm_medium: String(tracking.utm_medium || "").slice(0, 80) || null,
     utm_campaign: utmCampaign.slice(0, 80) || null,
-    utm_content: utmContent.slice(0, 80) || null
+    utm_content: utmContent.slice(0, 80) || null,
+    sck: sck.slice(0, 180) || null
   };
   const { data: sale, error: saleError } = await admin.from("av_sales").upsert({
     workspace_id: secret.workspace_id, product_id: product?.id || null, campaign_id: campaign?.id || null, tracking_link_id: trackingLink?.id || null,
