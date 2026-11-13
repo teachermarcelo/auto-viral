@@ -31,7 +31,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: link, error } = await admin
     .from("av_tracking_links")
-    .select("id,workspace_id,destination_url")
+    .select("id,workspace_id,campaign_id,destination_url")
     .eq("code", code)
     .maybeSingle();
 
@@ -75,5 +75,13 @@ Deno.serve(async (req: Request) => {
     });
   }
 
+  // Carry campaign and link IDs through Kiwify's documented TrackingParameters.
+  // These UTMs allow the purchase webhook to attribute an approved order to its originating campaign.
+  if (destination.hostname.toLowerCase() === "pay.kiwify.com.br") {
+    if (link.campaign_id) destination.searchParams.set("utm_campaign", String(link.campaign_id));
+    destination.searchParams.set("utm_source", "autoviral");
+    destination.searchParams.set("utm_medium", "organic");
+    destination.searchParams.set("utm_content", code);
+  }
   return Response.redirect(destination.toString(), 302);
 });
