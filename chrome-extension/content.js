@@ -8,8 +8,8 @@
   function normalize(value) {
     try {
       const u = new URL(value, location.href);
-      if (!/(^|\\.)facebook\\.com$/i.test(u.hostname)) return null;
-      const match = u.pathname.match(/^\\/groups\\/([^/?#]+)/i);
+      if (!/(^|\.)facebook\.com$/i.test(u.hostname)) return null;
+      const match = u.pathname.match(/^\/groups\/([^/?#]+)/i);
       if (!match || ["feed", "create", "discover", "joins", "your_groups"].includes(match[1].toLowerCase())) return null;
       return "https://www.facebook.com/groups/" + match[1] + "/";
     } catch { return null; }
@@ -47,10 +47,10 @@
         const link = [...document.querySelectorAll('a[href], [role="link"][href]')].find(el => normalize(el.href || el.getAttribute("href")) === url);
         const card = link?.closest('[role="article"], article, [role="listitem"]') || link?.parentElement;
         const rawName = link?.innerText || link?.getAttribute("aria-label") || card?.innerText || "";
-        const name = rawName.trim().replace(/\\s+/g, " ").slice(0, 180) || "Grupo do Facebook";
+        const name = rawName.trim().replace(/\s+/g, " ").slice(0, 180) || "Grupo do Facebook";
         found.set(url, {
           url, name, topic: "Facebook",
-          notes: (card?.innerText || "").trim().replace(/\\s+/g, " ").slice(0, 700),
+          notes: (card?.innerText || "").trim().replace(/\s+/g, " ").slice(0, 700),
           source_url: location.href, captured_at: new Date().toISOString()
         });
       }
