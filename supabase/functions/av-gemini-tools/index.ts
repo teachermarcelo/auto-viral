@@ -24,8 +24,8 @@ Deno.serve(async(req:Request)=>{
  if(!workspaceId||!title)return reply({error:"Workspace e tema são obrigatórios."},400);
  const {data:member,error:memberError}=await admin.from("av_workspace_members").select("workspace_id").eq("workspace_id",workspaceId).eq("user_id",userData.user.id).maybeSingle();
  if(memberError||!member)return reply({error:"Você não tem acesso a este workspace."},403);
- const prompt=task==="pain_search"
- ? "Crie um roteiro de pesquisa de mercado em português brasileiro para o tema informado. Separe hipóteses de fatos, não invente estatísticas, fontes, tendências ou dados locais. Liste perguntas para validar, públicos que podem ser entrevistados, termos de busca e fontes públicas que devem ser consultadas. Se não houver fontes verificadas, diga explicitamente que são hipóteses. Tema: "+title+"\nContexto: "+context
+ const prompt=task==="pain_search"||task==="ai_report"
+ ? (task==="ai_report"?"Elabore um relatório estratégico com diagnóstico, hipóteses, métricas necessárias, recomendações priorizadas e plano de validação. Não invente resultados nem números. ":"Crie um roteiro de pesquisa de mercado em português brasileiro. Separe hipóteses de fatos e não invente estatísticas ou fontes. Liste perguntas, termos de busca e fontes públicas para validar. ")+"Tema: "+title+"\nContexto: "+context
  : "Crie um rascunho em português brasileiro para divulgação ética do produto/tema informado. Não invente resultados, depoimentos, garantias, números, certificações ou benefícios que não estejam no contexto. Use CTA claro, linguagem natural, sem spam. Formato: "+format+". Canal: "+channel+". Tema: "+title+"\nContexto real fornecido: "+context+"\nEntregue somente o texto pronto para revisão.";
  const response=await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key="+encodeURIComponent(gemini),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.65,maxOutputTokens:1800}})});
  const result=await response.json();
