@@ -13,13 +13,14 @@ const amount = (v: unknown): number | null => {
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
-  const token = new URL(req.url).searchParams.get("token") || "";
-  if (!/^[a-f0-9]{64}$/i.test(token)) return json({ error: "Webhook token ausente ou inválido." }, 401);
+  const signature = new URL(req.url).searchParams.get("signature") || "";
+  if (!/^[a-f0-9]{40}$/i.test(signature)) return json({ error: "Assinatura Kiwify ausente ou inválida." }, 401);
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") || "{}").default;
   if (!supabaseUrl || !serviceKey) return json({ error: "Backend indisponível." }, 503);
+  const rawBody = await req.text();
   let body: Record<string, any>;
-  try { body = obj(await req.json()); } catch { return json({ error: "JSON inválido." }, 400); }
+  try { body = obj(JSON.parse(rawBody)); } catch { return json({ error: "JSON inválido." }, 400); }
   const orderId = String(pick(body.order_id, body.orderId, body.order_ref, body.id) || "");
   if (!orderId || orderId.length > 180) return json({ error: "Evento sem identificador de pedido." }, 400);
   const statusRaw = norm(pick(body.order_status, body.status, body.event, body.type));
@@ -33,11 +34,12 @@ Deno.serve(async (req: Request) => {
     canceled: "canceled", cancelled: "canceled", cancelada: "canceled"
   };
   const orderStatus = statusMap[statusRaw] || "unknown";
-  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token)));
-  const tokenHash = [...digest].map(b => b.toString(16).padStart(2, "0")).join("");
   const admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
-  const { data: secret, error: secretError } = await admin.from("av_kiwify_webhook_secrets").select("workspace_id").eq("token_hash", tokenHash).eq("active", true).maybeSingle();
-  if (secretError || !secret) return json({ error: "Webhook não autorizado." }, 401);
+  const { data: workspaceId, error: signatureError } = await admin.rpc("av_verify_kiwify_webhook", {
+    p_signature: signature.toLowerCase(), p_raw_body: rawBody, p_canonical_body: JSON.stringify(body)
+  });
+  if (signatureError || !workspaceId) return json({ error: "Assinatura Kiwify não confere." }, 401);
+  const secret = { workspace_id: workspaceId };
   const productObj = obj(pick(body.Product, body.product, body.product_data));
   const productName = String(pick(productObj.product_name, productObj.name, body.product_name, body.productName) || "");
   const productExternalId = String(pick(productObj.product_id, productObj.id, body.product_id) || "");
