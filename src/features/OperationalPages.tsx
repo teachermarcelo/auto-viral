@@ -304,6 +304,7 @@ export function CommunitiesPage({ workspaceId }: { workspaceId: string | null })
   const [groupSearch,setGroupSearch]=useState('');
   const [groupPlatform,setGroupPlatform]=useState('all');
   const [groupStatus,setGroupStatus]=useState('all');
+  const [openQueueIndex,setOpenQueueIndex]=useState(0);
   const [form, setForm] = useState({ name: '', url: '', topic: 'Psicopedagogia', platform: 'facebook', rules_url: '', notes: '' });
 
   const load = useCallback(async () => {
@@ -338,6 +339,16 @@ export function CommunitiesPage({ workspaceId }: { workspaceId: string | null })
     if (error) setMessage(`Falha ao atualizar: ${error.message}`); else await load();
   }
   const visibleCommunities=communities.filter(item=>(groupPlatform==='all'||(item.platform||'facebook')===groupPlatform)&&(groupStatus==='all'||item.status===groupStatus)&&(!groupSearch||[item.name,item.topic,item.url].join(' ').toLowerCase().includes(groupSearch.toLowerCase())));
+  const approvedSelectedGroups=communities.filter(item=>selectedIds.includes(item.id)&&(item.platform||'facebook')==='facebook'&&item.status==='approved');
+  function openNextApprovedGroup(){
+    if(!approvedSelectedGroups.length){setMessage('Selecione grupos do Facebook com status Aprovado para participação.');return;}
+    const index=openQueueIndex%approvedSelectedGroups.length;
+    const item=approvedSelectedGroups[index];
+    const tab=window.open(item.url,'_blank','noopener,noreferrer');
+    if(!tab){setMessage('O navegador bloqueou a nova aba. Permita pop-ups para este site e tente novamente.');return;}
+    setMessage('Grupo aberto ('+(index+1)+' de '+approvedSelectedGroups.length+'): '+item.name+'. Faça a publicação manualmente conforme as regras do grupo.');
+    setOpenQueueIndex(index+1);
+  }
   const allVisibleSelected=visibleCommunities.length>0&&visibleCommunities.every(item=>selectedIds.includes(item.id));
   function toggleVisible(){setSelectedIds(allVisibleSelected?selectedIds.filter(id=>!visibleCommunities.some(item=>item.id===id)):[...new Set([...selectedIds,...visibleCommunities.map(item=>item.id)])]);}
   async function bulkUpdate(status:string){
@@ -402,7 +413,7 @@ export function CommunitiesPage({ workspaceId }: { workspaceId: string | null })
     <section className="av-panel">
       <div className="av-panel-title"><h2>Grupos cadastrados</h2><span>{communities.length} grupo(s)</span></div>
       <div className="av-community-toolbar"><input value={groupSearch} onChange={e=>setGroupSearch(e.target.value)} placeholder="Buscar por nome, nicho ou link"/><select value={groupPlatform} onChange={e=>setGroupPlatform(e.target.value)}><option value="all">Todas as plataformas</option><option value="facebook">Facebook</option><option value="whatsapp">WhatsApp</option><option value="telegram">Telegram</option><option value="other">Outra</option></select><select value={groupStatus} onChange={e=>setGroupStatus(e.target.value)}><option value="all">Todos os status</option><option value="to_review">Rascunho / Revisar regras</option><option value="approved">Aprovados</option><option value="do_not_post">Não publicar</option><option value="archived">Arquivados</option></select></div>
-      <div className="av-bulk-toolbar"><label><input type="checkbox" checked={allVisibleSelected} onChange={toggleVisible}/> Selecionar todos os {visibleCommunities.length} filtrados</label><span>{selectedIds.length} selecionado(s)</span><button className="av-button primary small" disabled={!selectedIds.length} onClick={()=>void bulkUpdate('approved')}>Aprovar selecionados</button><button className="av-button secondary small" disabled={!selectedIds.length} onClick={()=>void bulkUpdate('to_review')}>Mover para rascunho</button><button className="av-button secondary small" disabled={!selectedIds.length} onClick={()=>void bulkUpdate('archived')}>Arquivar</button><button className="av-button secondary small" disabled={!selectedIds.length} onClick={()=>void bulkUpdate('do_not_post')}>Não publicar</button></div>
+      <div className="av-bulk-toolbar"><label><input type="checkbox" checked={allVisibleSelected} onChange={toggleVisible}/> Selecionar todos os {visibleCommunities.length} filtrados</label><span>{selectedIds.length} selecionado(s)</span><button className="av-button primary small" disabled={!selectedIds.length} onClick={()=>void bulkUpdate('approved')}>Aprovar selecionados</button><button className="av-button secondary small" disabled={!selectedIds.length} onClick={()=>void bulkUpdate('to_review')}>Mover para rascunho</button><button className="av-button secondary small" disabled={!selectedIds.length} onClick={()=>void bulkUpdate('archived')}>Arquivar</button><button className="av-button secondary small" disabled={!selectedIds.length} onClick={()=>void bulkUpdate('do_not_post')}>Não publicar</button><button className="av-button primary small" disabled={!approvedSelectedGroups.length} onClick={openNextApprovedGroup}>Abrir próximo grupo aprovado ({approvedSelectedGroups.length})</button><span className="av-note">Abre um grupo por clique; a publicação é confirmada por você no Facebook.</span></div>
       {loading ? <p className="av-empty">Consultando Supabase…</p> : communities.length === 0 ? <p className="av-empty">Nenhum grupo cadastrado. Adicione um grupo acima.</p> : visibleCommunities.length===0?<p className="av-empty">Nenhum grupo corresponde aos filtros.</p>:
         <div className="av-list">{visibleCommunities.map(item => <article className="av-list-row" key={item.id}>
           <div className="av-community-select"><input type="checkbox" aria-label={'Selecionar '+item.name} checked={selectedIds.includes(item.id)} onChange={e=>setSelectedIds(v=>e.target.checked?[...v,item.id]:v.filter(id=>id!==item.id))}/></div><div className="av-list-main"><strong>{item.name}</strong><small>{(item.platform||'facebook').toUpperCase()} · {item.topic} · {item.status}</small><a href={item.url} target="_blank" rel="noreferrer">{item.url} <ExternalLink size={12}/></a>{item.notes && <p>{item.notes}</p>}</div>
