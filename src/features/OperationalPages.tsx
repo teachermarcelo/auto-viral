@@ -325,7 +325,7 @@ export function CommunitiesPage({ workspaceId }: { workspaceId: string | null })
 
 
 type AudienceRow = { id:string; name:string; topic:string; description:string|null; source_type:string; status:string; created_at:string };
-type AudienceGroup = { topic:string; count:number };
+type AudienceGroup = { topic:string; count:number; approved:number };
 export function AudiencesPage({workspaceId}:{workspaceId:string|null}){
  const [rows,setRows]=useState<AudienceRow[]>([]);
  const [topics,setTopics]=useState<AudienceGroup[]>([]);
@@ -338,7 +338,7 @@ export function AudiencesPage({workspaceId}:{workspaceId:string|null}){
   setLoading(true);
   const [a,g]=await Promise.all([
    supabase.from('av_audiences').select('id,name,topic,description,source_type,status,created_at').eq('workspace_id',workspaceId).order('created_at',{ascending:false}),
-   supabase.from('av_communities').select('topic').eq('workspace_id',workspaceId)
+   supabase.from('av_communities').select('topic,status').eq('workspace_id',workspaceId)
   ]);
   if(a.error)setMessage('Erro ao carregar públicos: '+a.error.message);else setRows((a.data??[]) as AudienceRow[]);
   if(g.error)setMessage('Erro ao ler grupos: '+g.error.message);else{
@@ -354,7 +354,7 @@ export function AudiencesPage({workspaceId}:{workspaceId:string|null}){
   setSaving(false);if(error){setMessage(error.code==='23505'?'Esse público já existe neste workspace.':error.message);return;}
   setMessage('Público salvo. Ele já está disponível para planejamento de campanhas.');setForm(v=>({...v,name:'',description:''}));await load();
  }
- async function changeStatus(row:AudienceRow,status:string){if(!supabase||!workspaceId)return;const {error}=await supabase.from('av_audiences').update({status,updated_at:new Date().toISOString()}).eq('id',row.id).eq('workspace_id',workspaceId);if(error)setMessage(error.message);else await load();}
+ async function changeStatus(row:AudienceRow,status:string){if(!supabase||!workspaceId)return;if(status==='ready'){const group=topics.find(t=>t.topic===row.topic);if(!group||group.approved===0){setMessage('Este público ainda não está pronto: aprove pelo menos um grupo deste nicho em Grupos e oportunidades.');return;}}const {error}=await supabase.from('av_audiences').update({status,updated_at:new Date().toISOString()}).eq('id',row.id).eq('workspace_id',workspaceId);if(error)setMessage(error.message);else await load();}
  async function remove(row:AudienceRow){if(!supabase||!workspaceId||!window.confirm('Excluir o público '+row.name+'?'))return;const {error}=await supabase.from('av_audiences').delete().eq('id',row.id).eq('workspace_id',workspaceId);if(error)setMessage(error.message);else{setMessage('Público excluído.');await load();}}
  const groupTotal=topics.reduce((n,t)=>n+t.count,0);
  return <div className="av-page">
@@ -362,21 +362,21 @@ export function AudiencesPage({workspaceId}:{workspaceId:string|null}){
   {message&&<div className="av-message" role="status">{message}</div>}
   <section className="posts-stats">
    <article className="av-panel"><small>Públicos salvos</small><strong>{rows.length}</strong><span>Segmentos neste workspace</span></article>
-   <article className="av-panel"><small>Grupos mapeados</small><strong>{groupTotal}</strong><span>Registros em comunidades</span></article>
-   <article className="av-panel"><small>Nichos identificados</small><strong>{topics.length}</strong><span>Temas encontrados nos grupos</span></article>
+   <article className="av-panel"><small>Grupos mapeados</small><strong>{groupTotal}</strong><span>Grupos reais cadastrados no workspace</span></article>
+   <article className="av-panel"><small>Nichos identificados</small><strong>{topics.length}</strong><span>Nichos com comunidades mapeadas</span></article>
   </section>
   <section className="av-panel"><h2><Plus size={18}/> Criar público segmentado</h2>
    <form className="av-form" onSubmit={e=>void create(e)}>
     <div className="av-form-grid"><label>Nome do público<input required minLength={2} maxLength={160} value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Ex.: Professores e coordenadores pedagógicos"/></label>
     <label>Nicho / tema<select value={form.topic} onChange={e=>setForm({...form,topic:e.target.value})}><option value="">Selecionar tema</option>{topics.map(t=><option key={t.topic} value={t.topic}>{t.topic} ({t.count} grupos)</option>)}{!topics.length&&<option value="Geral">Geral</option>}</select></label></div>
     <label>Descrição e critérios<textarea rows={3} maxLength={1200} value={form.description} onChange={e=>setForm({...form,description:e.target.value})} placeholder="Descreva quem faz parte deste segmento, interesses e finalidade da campanha."/></label>
-    <p className="av-note">Os públicos são segmentos internos do AutoViral, derivados dos temas dos grupos cadastrados. Não incluem listas de membros nem dados pessoais e não são enviados automaticamente à Meta.</p>
+    <p className="av-note">Estes registros são segmentos, não grupos individuais. “Pronto para campanha” só pode ser marcado quando existir pelo menos um grupo do mesmo nicho aprovado. Os grupos e suas regras continuam precisando de revisão humana; nenhum membro é coletado.</p>
     <button className="av-button primary" disabled={saving}>{saving?'Salvando…':'Salvar público'}</button>
    </form>
   </section>
   <section className="av-panel"><div className="av-panel-title"><h2>Públicos cadastrados</h2><span>{rows.length} segmento(s)</span></div>
    {loading?<p className="av-empty">Carregando públicos…</p>:!rows.length?<p className="av-empty">Nenhum público salvo ainda. Crie o primeiro acima.</p>:
-   <div className="av-list">{rows.map(row=><article className="av-list-row" key={row.id}><div className="av-list-main"><strong>{row.name}</strong><small>{row.topic} · {row.source_type==='facebook_groups'?'Grupos públicos do Facebook':'Fonte manual'} · {new Date(row.created_at).toLocaleDateString('pt-BR')}</small>{row.description&&<p>{row.description}</p>}</div><select aria-label={'Status de '+row.name} value={row.status} onChange={e=>void changeStatus(row,e.target.value)}><option value="draft">Rascunho</option><option value="ready">Pronto para campanha</option><option value="archived">Arquivado</option></select><button className="av-icon-button danger" title="Excluir público" onClick={()=>void remove(row)}><Trash2 size={15}/></button></article>)}</div>}
+   <div className="av-list">{rows.map(row=><article className="av-list-row" key={row.id}><div className="av-list-main"><strong>{row.name}</strong><small>{row.topic} · {row.source_type==='facebook_groups'?'Grupos públicos do Facebook':'Fonte manual'} · {new Date(row.created_at).toLocaleDateString('pt-BR')}</small><small>{topics.find(t=>t.topic===row.topic)?.approved||0} grupo(s) aprovado(s) de {topics.find(t=>t.topic===row.topic)?.count||0} cadastrado(s)</small>{row.description&&<p>{row.description}</p>}</div><select aria-label={'Status de '+row.name} value={row.status} onChange={e=>void changeStatus(row,e.target.value)}><option value="draft">Rascunho</option><option value="ready">Pronto para campanha (com grupo aprovado)</option><option value="archived">Arquivado</option></select><button className="av-icon-button danger" title="Excluir público" onClick={()=>void remove(row)}><Trash2 size={15}/></button></article>)}</div>}
   </section>
   <section className="av-panel"><h2>Temas encontrados nos grupos</h2>{!topics.length?<p className="av-empty">Nenhum grupo foi sincronizado. Assim que os grupos aparecerem em Grupos e oportunidades, os temas serão listados aqui.</p>:<div className="av-list">{topics.map(t=><article className="av-list-row" key={t.topic}><div className="av-list-main"><strong>{t.topic}</strong><small>{t.count} grupo(s) associado(s)</small></div><button className="av-button secondary small" onClick={()=>setForm(v=>({...v,topic:t.topic,name:v.name||('Público — '+t.topic)}))}>Usar este tema</button></article>)}</div>}</section>
  </div>;
