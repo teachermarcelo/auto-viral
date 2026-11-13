@@ -35,7 +35,7 @@ A Edge Function `av-meta-publish-story` publica Stories por meio da API oficial 
 - URL HTTPS pública da imagem ou vídeo no registro do post.
 - Post do calendário com canal `instagram_story`.
 
-A tela Posts oferece o botão “Publicar Story agora” para registros compatíveis. Isso é publicação acionada pelo operador; a execução automática em horário agendado ainda depende de um agendador seguro configurado no projeto.
+A tela Posts oferece o botão “Publicar Story agora” para registros compatíveis. O agendador Supabase já está ativo a cada minuto: posts `instagram_story` com status `scheduled` e horário vencido são enviados automaticamente. O worker marca cada registro como `publishing`, `published` ou `failed`.
 
 ## WhatsApp
 
