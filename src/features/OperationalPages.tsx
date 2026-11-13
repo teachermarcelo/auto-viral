@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Copy, ExternalLink, Plus, RefreshCw, Users, Megaphone, CalendarClock, Upload, Trash2, FileText } from 'lucide-react';
+import { Copy, ExternalLink, Plus, RefreshCw, Users, Megaphone, CalendarClock, Upload, Trash2, FileText, MessageCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import './operational-pages.css';
 
@@ -196,7 +196,7 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
     }
     const { error } = await supabase.from('av_campaign_posts').insert(rows);
     if (error) setMessage(`Não foi possível salvar os lembretes: ${error.message}`);
-    else { setMessage(`${rows.length} lembrete(s) persistido(s) no calendário. A publicação continua manual.`); setScheduleOpen(null); }
+    else { setMessage(`${rows.length} publicação(ões) agendada(s). Instagram Stories serão enviados automaticamente no horário; outros canais permanecem manuais.`); setScheduleOpen(null); }
   }
 
   return <div className="av-page">
@@ -224,7 +224,7 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
           <label>Pausa após N lembretes<input type="number" min="0" max="1000" value={form.pause_after_posts} onChange={e => setForm({...form,pause_after_posts:Number(e.target.value)})}/></label>
           <label>Duração da pausa (minutos)<input type="number" min="0" max="1440" value={form.pause_duration_minutes} onChange={e => setForm({...form,pause_duration_minutes:Number(e.target.value)})}/></label>
         </div>
-        <p className="av-note">O intervalo e as pausas organizam lembretes editoriais; não disparam postagens nem tentam contornar limites das plataformas.</p>
+        <p className="av-note">O intervalo e as pausas organizam a agenda. Instagram Stories podem ser publicados pela API oficial no horário agendado após conectar a conta e fornecer mídia pública. Outros canais continuam manuais.</p>
         <button className="av-button primary" disabled={saving}>{saving ? 'Salvando no banco…' : 'Salvar campanha'}</button>
       </form>
     </section>
@@ -236,7 +236,7 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
           const clicks = link ? (clickCounts[link.id] ?? 0) : 0;
           return <article className="av-list-row" key={campaign.id}>
             <div className="av-list-main"><strong>{campaign.name}</strong><small>{campaign.status} · {campaign.channel} · {campaign.posting_interval_seconds}s de intervalo</small><p>{campaign.copy_text || 'Sem copy cadastrada.'}</p>
-              {link && <div className="av-track-row"><code>{CLICK_URL}{link.code}</code><button className="av-icon-button" title="Copiar link rastreável" onClick={() => void navigator.clipboard.writeText(CLICK_URL + link.code)}><Copy size={15}/></button><span>{clicks} clique(s) registrado(s)</span><a href={LEAD_URL + link.code} target="_blank" rel="noreferrer">Abrir formulário de lead</a><button className="av-icon-button" title="Copiar formulário de lead" onClick={() => void navigator.clipboard.writeText(LEAD_URL + link.code)}><Copy size={15}/></button></div>}{leadsByCampaign[campaign.id] && <p className="av-lead-summary"><strong>{leadsByCampaign[campaign.id].count} lead(s) com consentimento</strong>{leadsByCampaign[campaign.id].cities.length ? ` · Cidades informadas: ${leadsByCampaign[campaign.id].cities.join(', ')}` : ' · Nenhuma cidade informada ainda'}</p>}
+              {link && <div className="av-track-row"><code>{CLICK_URL}{link.code}</code><button className="av-icon-button" title="Copiar link rastreável" onClick={() => void navigator.clipboard.writeText(CLICK_URL + link.code)}><Copy size={15}/></button><button className="av-icon-button" title="Compartilhar no WhatsApp" onClick={() => window.open('https://wa.me/?text='+encodeURIComponent((campaign.copy_text||'')+'\\n\\n'+CLICK_URL+link.code),'_blank','noopener,noreferrer')}><MessageCircle size={15}/></button><span>{clicks} clique(s) registrado(s)</span><a href={LEAD_URL + link.code} target="_blank" rel="noreferrer">Abrir formulário de lead</a><button className="av-icon-button" title="Copiar formulário de lead" onClick={() => void navigator.clipboard.writeText(LEAD_URL + link.code)}><Copy size={15}/></button></div>}{leadsByCampaign[campaign.id] && <p className="av-lead-summary"><strong>{leadsByCampaign[campaign.id].count} lead(s) com consentimento</strong>{leadsByCampaign[campaign.id].cities.length ? ` · Cidades informadas: ${leadsByCampaign[campaign.id].cities.join(', ')}` : ' · Nenhuma cidade informada ainda'}</p>}
             </div>
             <button className="av-button secondary small" onClick={() => { setScheduleOpen(scheduleOpen === campaign.id ? null : campaign.id); setScheduleStart(localDateTimeValue(new Date(Date.now()+3600000))); }}><CalendarClock size={15}/> Lembretes</button>
             {scheduleOpen === campaign.id && <div className="av-schedule">
@@ -462,7 +462,7 @@ export function PostsPage({ workspaceId }: { workspaceId: string | null }) {
     else { setError('Story publicado pela API oficial do Instagram.'); await load(); }
   }
   const published=rows.filter(r=>r.status==='published').length;
-  const pending=rows.filter(r=>r.status==='scheduled').length;
+  const pending=rows.filter(r=>r.status==='scheduled'||r.status==='publishing').length;
   const failed=rows.filter(r=>r.status==='failed').length;
   return <div className="av-page posts-overview">
     <section className="av-page-heading"><div><span className="av-eyebrow"><FileText size={14}/> RESULTADOS E HISTÓRICO</span><h1>Posts</h1><p>Histórico de publicações e lembretes registrados no AutoViral.</p></div><button className="av-button secondary" onClick={()=>void load()}><RefreshCw size={15}/> Atualizar</button></section>
@@ -477,7 +477,7 @@ export function PostsPage({ workspaceId }: { workspaceId: string | null }) {
       {loading ? <p className="av-empty">Carregando histórico…</p> : rows.length===0 ? <p className="av-empty">Ainda não há posts registrados. Crie lembretes em Campanhas e registre as publicações realizadas.</p> :
       <div className="av-list">{rows.map(row=><article className="av-list-row" key={row.id}><div className="av-list-main"><strong>{campaignNames[row.campaign_id] || 'Campanha'}</strong><small>{new Date(row.scheduled_at).toLocaleString('pt-BR')} · {row.status}</small><p>{row.copy_snapshot}</p>{(row.published_url || row.destination_url) && <a href={row.published_url || row.destination_url || '#'} target="_blank" rel="noreferrer">{row.published_url ? 'Abrir publicação registrada' : 'Abrir destino' } <ExternalLink size={12}/></a>}{row.channel==='instagram_story' && row.status!=='published' && <button className="av-button primary small" disabled={publishingId===row.id || !row.media_url} onClick={()=>void publishStory(row)}>{publishingId===row.id?'Publicando…':'Publicar Story agora'}</button>}</div><span className={'post-status '+row.status}>{row.status==='published'?'Publicado':row.status==='scheduled'?'Pendente':row.status==='failed'?'Falhou':row.status}</span></article>)}</div>}
     </section>
-    <p className="av-note">A plataforma registra apenas status e URLs informados ou retornados por integrações oficiais. Impressões, respostas e curtidas só serão exibidas quando uma API autorizada fornecer esses eventos.</p>
+    <p className="av-note">Stories agendados são processados pelo agendador a cada minuto. A publicação só ocorre se a conta profissional Meta estiver conectada e a mídia HTTPS pública estiver disponível. Impressões, respostas e curtidas só aparecem quando uma API autorizada fornecer esses eventos.</p>
   </div>;
 }
 
