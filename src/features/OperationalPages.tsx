@@ -158,7 +158,7 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
       else await supabase.from('av_campaigns').update({posts_since_pause:next}).eq('id',campaign.id).eq('workspace_id',workspaceId);
     }else setMessage('Publicação registrada.');await load();
   }
-  async function cancelPost(post:ScheduledPost){if(!supabase||!workspaceId)return;const {error}=await supabase.from('av_campaign_posts').update({status:'cancelled'}).eq('id',post.id).eq('workspace_id',workspaceId);if(error)setMessage(error.message);else await load();}
+  async function cancelPost(post:ScheduledPost){if(!supabase||!workspaceId)return;const {error}=await supabase.from('av_campaign_posts').update({status:'cancelled'}).eq('id',post.id).eq('workspace_id',workspaceId);if(error)setMessage(error.message);else{if(post.campaign_run_id)await refreshRunState(post.campaign_run_id);await load();}}
   async function refreshRunState(runId:string){
     if(!supabase||!workspaceId)return;
     const {data,error}=await supabase.from('av_campaign_posts').select('status').eq('workspace_id',workspaceId).eq('campaign_run_id',runId);
