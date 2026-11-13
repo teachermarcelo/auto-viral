@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Copy, ExternalLink, Plus, RefreshCw, Sparkles, MapPin, FileText, Send, Search } from 'lucide-react';
+import { Copy, ExternalLink, RefreshCw, Sparkles } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 type Row = Record<string, any>;
