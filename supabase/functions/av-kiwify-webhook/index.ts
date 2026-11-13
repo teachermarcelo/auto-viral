@@ -43,7 +43,11 @@ Deno.serve(async (req: Request) => {
   const productExternalId = String(pick(productObj.product_id, productObj.id, body.product_id) || "");
   const { data: products, error: productError } = await admin.from("av_products").select("id,name,price").eq("workspace_id", secret.workspace_id);
   if (productError) return json({ error: "Não foi possível localizar os produtos." }, 500);
-  const product = (products || []).find((p: any) => norm(p.name) === norm(productName)) || null;
+  const checkoutCode = String(pick(body.checkout_link, body.checkoutLink) || "").split("/").pop()?.split("?")[0] || "";
+  const product = (products || []).find((p: any) => norm(p.name) === norm(productName))
+    || (products || []).find((p: any) => {
+      try { return checkoutCode && new URL(p.checkout_url).pathname.slice(1) === checkoutCode; } catch { return false; }
+    }) || null;
   let campaign: any = null;
   if (product) {
     const { data } = await admin.from("av_campaigns").select("id").eq("workspace_id", secret.workspace_id).eq("product_id", product.id).order("created_at", { ascending: false }).limit(1).maybeSingle();
