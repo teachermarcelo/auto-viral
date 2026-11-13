@@ -234,11 +234,11 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
     if(['facebook_group','whatsapp'].includes(campaign.channel)&&!targets.length){setMessage('Selecione pelo menos um grupo aprovado em Grupos e oportunidades.');return;}
     const count=Math.min(100,Math.max(1,Number(scheduleCount)||1)),start=new Date(scheduleStart);
     if(!Number.isFinite(start.getTime())){setMessage('Data e horário inválidos.');return;}
+    generatingRunRef.current=true;setGeneratingRun(true);setMessage('');
     const recentCutoff=new Date(Date.now()-120000).toISOString();
     const {data:recentRuns,error:recentError}=await supabase.from('av_campaign_runs').select('id,created_at,status').eq('workspace_id',workspaceId).eq('campaign_id',campaign.id).in('status',['running','queued','paused']).gte('created_at',recentCutoff).limit(1);
-    if(recentError){setMessage('Não foi possível verificar execuções anteriores: '+recentError.message);return;}
-    if(recentRuns?.length){setMessage('Já existe uma fila recente para esta campanha. Abra a execução existente para evitar duplicidade.');return;}
-    generatingRunRef.current=true;setGeneratingRun(true);setMessage('');
+    if(recentError){setMessage('Não foi possível verificar execuções anteriores: '+recentError.message);generatingRunRef.current=false;setGeneratingRun(false);return;}
+    if(recentRuns?.length){setMessage('Já existe uma fila recente para esta campanha. Abra a execução existente para evitar duplicidade.');generatingRunRef.current=false;setGeneratingRun(false);return;}
     const pauseEvery=Math.max(0,campaign.pause_after_posts||0),pauseMs=Math.max(0,campaign.pause_duration_minutes||0)*60000,interval=Math.max(0,campaign.posting_interval_seconds||0)*1000;
     const tasks:any[]=[];
     const destinations=targets.length?targets:[null];
