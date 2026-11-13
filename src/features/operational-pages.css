@@ -115,3 +115,11 @@ html[data-theme="light"] .av-run-overview>div:first-child strong{color:#172437}
 .av-button.danger-outline{background:rgba(190,35,57,.09);color:#fda4af;border:1px solid rgba(244,63,94,.38)}
 .av-button.danger:hover,.av-button.danger-outline:hover{filter:brightness(1.12)}
 @media(max-width:760px){.av-run-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+.av-paste-composer{display:grid;gap:10px;grid-column:1/-1;width:100%;margin:12px 0;padding:14px;border:1px solid rgba(139,92,246,.38);border-radius:12px;background:rgba(91,65,160,.09)}
+.av-paste-composer>strong{font-size:13px;color:var(--av-text,#f5f3ff)}
+.av-paste-composer>textarea{width:100%;min-height:170px;resize:vertical;padding:12px;border:1px solid var(--av-border,#393349);border-radius:9px;background:var(--av-input,#100f18);color:var(--av-text,#f5f3ff);font:inherit;line-height:1.55}
+.av-paste-composer>.file-button{display:inline-flex;align-items:center;gap:8px;width:max-content;max-width:100%;padding:9px 12px;border:1px solid var(--av-border,#393349);border-radius:9px;cursor:pointer}
+.av-paste-composer>.file-button input{display:none}
+.av-paste-composer>small{color:var(--av-muted,#aaa3b6);font-size:11px}
+html[data-theme="light"] .av-paste-composer>textarea{background:#fff;color:#172437;border-color:#cbd5e1}
