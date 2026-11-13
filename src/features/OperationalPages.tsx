@@ -61,7 +61,7 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
       supabase.from('av_products').select('id,name').eq('workspace_id', workspaceId).order('name'),
       supabase.from('av_campaigns').select('id,name,product_id,objective,status,channel,copy_text,destination_url,image_url,video_url,posting_interval_seconds,pause_after_posts,pause_duration_minutes').eq('workspace_id', workspaceId).order('created_at', { ascending: false }),
       supabase.from('av_tracking_links').select('id,campaign_id,code,destination_url,label').eq('workspace_id', workspaceId).order('created_at', { ascending: false }),
-      supabase.from('av_campaign_posts').select('id,campaign_id,scheduled_at,status,copy_snapshot,destination_url,published_url').eq('workspace_id', workspaceId).order('scheduled_at', { ascending: true }),
+      supabase.from('av_campaign_posts').select('id,campaign_id,scheduled_at,status,copy_snapshot,destination_url,published_url,channel,media_url').eq('workspace_id', workspaceId).order('scheduled_at', { ascending: true }),
       supabase.from('av_leads').select('campaign_id,city').eq('workspace_id', workspaceId),
     ]);
     if (productResult.error) setMessage(`Produtos: ${productResult.error.message}`);
@@ -184,7 +184,7 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
       rows.push({
         workspace_id: workspaceId,
         campaign_id: campaign.id,
-        channel: campaign.status === 'archived' ? 'manual' : 'manual',
+        channel: campaign.channel === 'instagram_story' ? 'instagram_story' : 'manual',
         scheduled_at: new Date(next).toISOString(),
         status: 'scheduled',
         copy_snapshot: campaign.copy_text,
@@ -211,7 +211,7 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
         <label>Nome da campanha<input required maxLength={180} value={form.name} onChange={e => setForm({...form,name:e.target.value})} placeholder="Ex.: Psicopedagogia — avaliação inicial"/></label>
         <div className="av-form-grid">
           <label>Produto<select value={form.product_id} onChange={e => setForm({...form,product_id:e.target.value})}><option value="">Sem produto vinculado</option>{products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
-          <label>Canal<select value={form.channel} onChange={e => setForm({...form,channel:e.target.value})}><option value="facebook_group">Grupo do Facebook (manual)</option><option value="instagram">Instagram (manual)</option><option value="facebook_page">Página do Facebook</option><option value="whatsapp">WhatsApp (opt-in)</option><option value="other">Outro</option></select></label>
+          <label>Canal<select value={form.channel} onChange={e => setForm({...form,channel:e.target.value})}><option value="facebook_group">Grupo do Facebook (manual)</option><option value="instagram">Instagram (manual)</option><option value="instagram_story">Instagram Stories (API oficial)</option><option value="facebook_page">Página do Facebook</option><option value="whatsapp">WhatsApp (opt-in)</option><option value="other">Outro</option></select></label>
         </div>
         <label>Copy / texto da publicação<textarea required rows={5} value={form.copy_text} onChange={e => setForm({...form,copy_text:e.target.value})} placeholder="Escreva o texto que será usado na publicação."/></label>
         <label>Link de compra / destino<input type="url" value={form.destination_url} onChange={e => setForm({...form,destination_url:e.target.value})} placeholder="https://..."/></label>
@@ -436,7 +436,8 @@ export function AudiencesPage({workspaceId}:{workspaceId:string|null}){
 }
 
 export function PostsPage({ workspaceId }: { workspaceId: string | null }) {
-  const [rows, setRows] = useState<{id:string;campaign_id:string;scheduled_at:string;status:string;copy_snapshot:string;destination_url:string|null;published_url:string|null}[]>([]);
+  const [rows, setRows] = useState<{id:string;campaign_id:string;scheduled_at:string;status:string;copy_snapshot:string;destination_url:string|null;published_url:string|null;channel:string;media_url:string|null}[]>([]);
+  const [publishingId,setPublishingId]=useState<string|null>(null);
   const [campaignNames, setCampaignNames] = useState<Record<string,string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -452,6 +453,14 @@ export function PostsPage({ workspaceId }: { workspaceId: string | null }) {
     setLoading(false);
   },[workspaceId]);
   useEffect(()=>{void load();},[load]);
+  async function publishStory(row: typeof rows[number]) {
+    if (!supabase) return;
+    setPublishingId(row.id); setError('');
+    const { data, error } = await supabase.functions.invoke('av-meta-publish-story', { body: { post_id: row.id } });
+    setPublishingId(null);
+    if (error || data?.error) setError(data?.error || error?.message || 'Falha ao publicar Story.');
+    else { setError('Story publicado pela API oficial do Instagram.'); await load(); }
+  }
   const published=rows.filter(r=>r.status==='published').length;
   const pending=rows.filter(r=>r.status==='scheduled').length;
   const failed=rows.filter(r=>r.status==='failed').length;
@@ -466,7 +475,7 @@ export function PostsPage({ workspaceId }: { workspaceId: string | null }) {
     </section>
     <section className="av-panel"><div className="av-panel-title"><h2>Links dos posts e histórico</h2><span>{rows.length} registro(s)</span></div>
       {loading ? <p className="av-empty">Carregando histórico…</p> : rows.length===0 ? <p className="av-empty">Ainda não há posts registrados. Crie lembretes em Campanhas e registre as publicações realizadas.</p> :
-      <div className="av-list">{rows.map(row=><article className="av-list-row" key={row.id}><div className="av-list-main"><strong>{campaignNames[row.campaign_id] || 'Campanha'}</strong><small>{new Date(row.scheduled_at).toLocaleString('pt-BR')} · {row.status}</small><p>{row.copy_snapshot}</p>{(row.published_url || row.destination_url) && <a href={row.published_url || row.destination_url || '#'} target="_blank" rel="noreferrer">{row.published_url ? 'Abrir publicação registrada' : 'Abrir destino' } <ExternalLink size={12}/></a>}</div><span className={'post-status '+row.status}>{row.status==='published'?'Publicado':row.status==='scheduled'?'Pendente':row.status==='failed'?'Falhou':row.status}</span></article>)}</div>}
+      <div className="av-list">{rows.map(row=><article className="av-list-row" key={row.id}><div className="av-list-main"><strong>{campaignNames[row.campaign_id] || 'Campanha'}</strong><small>{new Date(row.scheduled_at).toLocaleString('pt-BR')} · {row.status}</small><p>{row.copy_snapshot}</p>{(row.published_url || row.destination_url) && <a href={row.published_url || row.destination_url || '#'} target="_blank" rel="noreferrer">{row.published_url ? 'Abrir publicação registrada' : 'Abrir destino' } <ExternalLink size={12}/></a>}{row.channel==='instagram_story' && row.status!=='published' && <button className="av-button primary small" disabled={publishingId===row.id || !row.media_url} onClick={()=>void publishStory(row)}>{publishingId===row.id?'Publicando…':'Publicar Story agora'}</button>}</div><span className={'post-status '+row.status}>{row.status==='published'?'Publicado':row.status==='scheduled'?'Pendente':row.status==='failed'?'Falhou':row.status}</span></article>)}</div>}
     </section>
     <p className="av-note">A plataforma registra apenas status e URLs informados ou retornados por integrações oficiais. Impressões, respostas e curtidas só serão exibidas quando uma API autorizada fornecer esses eventos.</p>
   </div>;
@@ -515,14 +524,14 @@ export function OpportunitiesPage({workspaceId}:{workspaceId:string|null}){
 
 
 export function AnalyticsPage({workspaceId}:{workspaceId:string|null}){
- const [events,setEvents]=useState<{id:number;event_type:string;created_at:string;tracking_link_id:string;referrer_host:string|null}[]>([]),[leads,setLeads]=useState<{id:string;campaign_id:string|null;created_at:string}[]>([]),[posts,setPosts]=useState<{id:string;status:string;channel:string;created_at:string}[]>([]),[links,setLinks]=useState<Record<string,string>>({}),[loading,setLoading]=useState(true),[error,setError]=useState('');
- const load=useCallback(async()=>{if(!supabase||!workspaceId){setLoading(false);return;}setLoading(true);const [e,l,p,k]=await Promise.all([supabase.from('av_tracking_events').select('id,event_type,created_at,tracking_link_id,referrer_host').eq('workspace_id',workspaceId).order('created_at',{ascending:false}).limit(1000),supabase.from('av_leads').select('id,campaign_id,created_at').eq('workspace_id',workspaceId).order('created_at',{ascending:false}).limit(1000),supabase.from('av_campaign_posts').select('id,status,channel,created_at').eq('workspace_id',workspaceId).order('created_at',{ascending:false}).limit(500),supabase.from('av_tracking_links').select('id,label,code').eq('workspace_id',workspaceId)]);const errors=[e.error,l.error,p.error,k.error].filter(Boolean);if(errors.length)setError(errors.map(x=>x?.message).join(' · '));else setError('');setEvents((e.data??[]) as typeof events);setLeads((l.data??[]) as typeof leads);setPosts((p.data??[]) as typeof posts);setLinks(Object.fromEntries((k.data??[]).map((x:{id:string;label:string|null;code:string})=>[x.id,x.label||x.code])));setLoading(false);},[workspaceId]);
+ const [events,setEvents]=useState<{id:number;event_type:string;created_at:string;tracking_link_id:string;referrer_host:string|null}[]>([]),[leads,setLeads]=useState<{id:string;campaign_id:string|null;created_at:string}[]>([]),[posts,setPosts]=useState<{id:string;status:string;channel:string;created_at:string}[]>([]),[sales,setSales]=useState<{id:string;order_status:string;amount:number|null;currency:string;paid_at:string|null}[]>([]),[links,setLinks]=useState<Record<string,string>>({}),[loading,setLoading]=useState(true),[error,setError]=useState('');
+ const load=useCallback(async()=>{if(!supabase||!workspaceId){setLoading(false);return;}setLoading(true);const [e,l,p,k,s]=await Promise.all([supabase.from('av_tracking_events').select('id,event_type,created_at,tracking_link_id,referrer_host').eq('workspace_id',workspaceId).order('created_at',{ascending:false}).limit(1000),supabase.from('av_leads').select('id,campaign_id,created_at').eq('workspace_id',workspaceId).order('created_at',{ascending:false}).limit(1000),supabase.from('av_campaign_posts').select('id,status,channel,created_at').eq('workspace_id',workspaceId).order('created_at',{ascending:false}).limit(500),supabase.from('av_tracking_links').select('id,label,code').eq('workspace_id',workspaceId),supabase.from('av_sales').select('id,order_status,amount,currency,paid_at').eq('workspace_id',workspaceId).order('received_at',{ascending:false}).limit(1000)]);const errors=[e.error,l.error,p.error,k.error,s.error].filter(Boolean);if(errors.length)setError(errors.map(x=>x?.message).join(' · '));else setError('');setEvents((e.data??[]) as typeof events);setLeads((l.data??[]) as typeof leads);setPosts((p.data??[]) as typeof posts);setSales((s.data??[]) as typeof sales);setLinks(Object.fromEntries((k.data??[]).map((x:{id:string;label:string|null;code:string})=>[x.id,x.label||x.code])));setLoading(false);},[workspaceId]);
  useEffect(()=>{void load();},[load]);
- const clicks=events.filter(x=>x.event_type==='click').length,conversions=events.filter(x=>x.event_type==='sale').length;
+ const clicks=events.filter(x=>x.event_type==='click').length,conversions=sales.filter(x=>['paid','approved'].includes(x.order_status)).length,revenue=sales.filter(x=>['paid','approved'].includes(x.order_status)).reduce((sum,x)=>sum+Number(x.amount||0),0);
  const last7=Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(6-i));const key=d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});const day=d.toDateString();return {key,count:events.filter(e=>e.event_type==='click'&&new Date(e.created_at).toDateString()===day).length};});
  const max=Math.max(1,...last7.map(x=>x.count));
  return <div className="av-page"><section className="av-page-heading"><div><span className="av-eyebrow">DESEMPENHO E ATRIBUIÇÃO</span><h1>Analytics</h1><p>Métricas reais recebidas dos links rastreáveis, formulários e registros de publicação.</p></div><button className="av-button secondary" onClick={()=>void load()}><RefreshCw size={15}/> Atualizar</button></section>
- {error&&<p className="av-message">{error}</p>}<section className="posts-stats"><article className="av-panel"><small>Cliques registrados</small><strong>{clicks}</strong></article><article className="av-panel"><small>Leads capturados</small><strong>{leads.length}</strong></article><article className="av-panel"><small>Vendas atribuídas</small><strong>{conversions}</strong></article><article className="av-panel"><small>Posts registrados</small><strong>{posts.length}</strong></article></section>
+ {error&&<p className="av-message">{error}</p>}<section className="posts-stats"><article className="av-panel"><small>Cliques registrados</small><strong>{clicks}</strong></article><article className="av-panel"><small>Leads capturados</small><strong>{leads.length}</strong></article><article className="av-panel"><small>Vendas Kiwify confirmadas</small><strong>{conversions}</strong></article><article className="av-panel"><small>Faturamento confirmado</small><strong>{revenue.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</strong></article><article className="av-panel"><small>Posts registrados</small><strong>{posts.length}</strong></article></section>
  <section className="av-panel"><h2>Cliques por dia · últimos 7 dias</h2>{loading?<p className="av-empty">Carregando métricas…</p>:<div className="av-bars">{last7.map(d=><div className="av-bar-column" key={d.key}><strong>{d.count}</strong><div className="av-bar-track"><i style={{height:(d.count/max*100)+'%'}}/></div><small>{d.key}</small></div>)}</div>}</section>
  <section className="av-panel"><h2>Atividade recente</h2>{events.length===0?<p className="av-empty">Ainda não existem cliques registrados. Crie links rastreáveis e compartilhe-os para começar a medir.</p>:<div className="av-list">{events.slice(0,30).map(e=><article className="av-list-row" key={e.id}><div className="av-list-main"><strong>{e.event_type==='click'?'Clique':e.event_type==='lead'?'Lead':'Venda'}</strong><small>{links[e.tracking_link_id]||'Link rastreável'} · {new Date(e.created_at).toLocaleString('pt-BR')}</small><p>{e.referrer_host||'Origem não informada'}</p></div></article>)}</div>}</section>
  <p className="av-note">Os números representam somente eventos recebidos e armazenados pelo AutoViral. Impressões e interações dentro de redes sociais dependem de APIs oficiais e permissões concedidas.</p></div>;
