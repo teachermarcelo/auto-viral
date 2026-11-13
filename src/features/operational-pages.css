@@ -13,3 +13,13 @@ html[data-theme="light"] .integration-card p,html[data-theme="light"] .integrati
 .av-kicker{display:inline-flex;align-items:center;gap:7px;color:#b8a2ff;font-size:10px;font-weight:800;letter-spacing:1.25px}
 .av-feedback{font-size:12px;color:#c7b8ff;line-height:1.4}
 .av-status{font-size:10px;color:#c4b5fd;background:#29233a;padding:4px 8px;border-radius:99px}
+
+/* Campaign media upload, queue, and cooldown */
+.av-upload-box{display:grid;gap:8px;padding:14px;border:1px dashed var(--border);border-radius:12px;background:rgba(140,110,220,.04)}
+.av-upload-box>span,.av-schedule small{font-size:11px;color:var(--muted)}
+.av-campaign-preview{display:block;max-width:100%;max-height:280px;object-fit:contain;object-position:left center;border-radius:10px;border:1px solid var(--border)}
+.av-campaign-thumb{display:block;max-width:220px;max-height:140px;object-fit:contain;border-radius:8px;margin:8px 0;border:1px solid var(--border)}
+.av-cooldown{display:inline-flex;padding:7px 10px;border-radius:8px;background:rgba(245,158,11,.12);color:#fbbf24;font-weight:700;font-size:12px}
+.av-community-picker{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;max-height:240px;overflow:auto;padding:8px;border:1px solid var(--border);border-radius:10px}
+.av-community-picker label{display:flex;gap:8px;align-items:flex-start;font-size:12px}
+.av-community-picker input{margin-top:2px}
