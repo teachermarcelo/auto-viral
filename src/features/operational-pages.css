@@ -5,3 +5,11 @@ html[data-theme="light"] .av-bar-column strong{color:#172437}
 
 .integration-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}.integration-card{display:flex;flex-direction:column;align-items:flex-start;gap:10px}.integration-card h2{margin:0!important}.integration-card p{font-size:12px;color:var(--text-secondary,#a9a2b6);margin:0}.integration-card small{font-size:10px;color:var(--text-secondary,#a9a2b6)}.integration-card .av-button{margin-top:auto}.integration-card-top{width:100%;display:flex;align-items:center;justify-content:space-between}.integration-logo{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;background:#27364c;color:#e9effa;font-size:12px;font-weight:800}.integration-logo.instagram{background:#67344f}.integration-logo.facebook{background:#21436a}.integration-logo.youtube{background:#71313a}.integration-logo.pinterest{background:#6b3035}.integration-logo.tiktok{background:#293344}
 html[data-theme="light"] .integration-card p,html[data-theme="light"] .integration-card small{color:#64748b}
+
+/* Growth workspace fields and feedback */
+.av-form .av-field{display:grid;gap:7px;font-size:12px;color:#c8c1d3}
+.av-form .av-field input,.av-form .av-field textarea,.av-form .av-field select{width:100%;border:1px solid #393348;background:#100f18;color:#f6f3fb;border-radius:8px;padding:10px 11px;font:inherit;min-width:0}
+.av-form .av-field textarea{resize:vertical}
+.av-kicker{display:inline-flex;align-items:center;gap:7px;color:#b8a2ff;font-size:10px;font-weight:800;letter-spacing:1.25px}
+.av-feedback{font-size:12px;color:#c7b8ff;line-height:1.4}
+.av-status{font-size:10px;color:#c4b5fd;background:#29233a;padding:4px 8px;border-radius:99px}
