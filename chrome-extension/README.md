@@ -1,4 +1,4 @@
-# AutoViral AI — Mapeador de Grupos (0.4.1)
+# AutoViral AI — Mapeador de Grupos (0.4.2)
 
 Extensão Chrome Manifest V3 que identifica URLs de grupos públicos exibidos nos resultados carregados pelo próprio usuário e sincroniza os registros com `av_communities` no workspace autenticado.
 
