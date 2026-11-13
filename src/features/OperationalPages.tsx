@@ -11,7 +11,8 @@ type Campaign = {
 };
 type TrackingLink = { id: string; campaign_id: string | null; code: string; destination_url: string; label: string | null };
 type ScheduledPost = { id: string; campaign_id: string; scheduled_at: string; status: string; copy_snapshot: string; destination_url: string | null; published_url: string | null; channel?: string; media_url?: string|null; community_id?: string|null; tracking_link_id?: string|null; execution_note?: string|null };
-type Community = { id: string; name: string; url: string; topic: string; status: string; notes: string | null };\ntype CommunityOption = { id:string; name:string; url:string; topic:string; status:string };
+type Community = { id: string; name: string; url: string; topic: string; status: string; notes: string | null };
+type CommunityOption = { id:string; name:string; url:string; topic:string; status:string };
 
 const PROJECT_URL = 'https://nuyzvpkvawixidotuuio.supabase.co';
 const CLICK_URL = `${PROJECT_URL}/functions/v1/av-click?c=`;
