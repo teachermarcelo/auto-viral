@@ -8,7 +8,7 @@ const obj = (v: unknown): Record<string, any> => v && typeof v === "object" && !
 const amount = (v: unknown): number | null => {
   if (v === undefined || v === null || v === "") return null;
   const n = typeof v === "number" ? v : Number(String(v).replace(",", "."));
-  return Number.isFinite(n) && n >= 0 ? (n > 99999 ? n / 100 : n) : null;
+  return Number.isFinite(n) && n >= 0 ? n : null;
 };
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -24,11 +24,11 @@ Deno.serve(async (req: Request) => {
   if (!orderId || orderId.length > 180) return json({ error: "Evento sem identificador de pedido." }, 400);
   const statusRaw = norm(pick(body.order_status, body.status, body.event, body.type));
   const statusMap: Record<string, string> = {
-    paid: "paid", approved: "approved", aprovada: "approved",
+    paid: "paid", approved: "approved", authorized: "authorized", processing: "processing", aprovada: "approved",
     "pagamento aprovado": "approved", "waiting payment": "waiting_payment",
     pending: "waiting_payment", "aguardando pagamento": "waiting_payment",
     refused: "refused", rejected: "refused", recusada: "refused",
-    refunded: "refunded", refund: "refunded", reembolsada: "refunded",
+    refunded: "refunded", refund: "refunded", reembolsada: "refunded", "pending refund": "pending_refund", "refund requested": "refund_requested",
     chargedback: "chargedback", chargeback: "chargedback",
     canceled: "canceled", cancelled: "canceled", cancelada: "canceled"
   };
@@ -41,10 +41,11 @@ Deno.serve(async (req: Request) => {
   const productObj = obj(pick(body.Product, body.product, body.product_data));
   const productName = String(pick(productObj.product_name, productObj.name, body.product_name, body.productName) || "");
   const productExternalId = String(pick(productObj.product_id, productObj.id, body.product_id) || "");
-  const { data: products, error: productError } = await admin.from("av_products").select("id,name,price").eq("workspace_id", secret.workspace_id);
+  const { data: products, error: productError } = await admin.from("av_products").select("id,name,price,checkout_url,kiwify_product_id").eq("workspace_id", secret.workspace_id);
   if (productError) return json({ error: "Não foi possível localizar os produtos." }, 500);
   const checkoutCode = String(pick(body.checkout_link, body.checkoutLink) || "").split("/").pop()?.split("?")[0] || "";
-  const product = (products || []).find((p: any) => norm(p.name) === norm(productName))
+  const product = (products || []).find((p: any) => productExternalId && p.kiwify_product_id === productExternalId)
+    || (products || []).find((p: any) => norm(p.name) === norm(productName))
     || (products || []).find((p: any) => {
       try { return checkoutCode && new URL(p.checkout_url).pathname.slice(1) === checkoutCode; } catch { return false; }
     }) || null;
@@ -54,10 +55,12 @@ Deno.serve(async (req: Request) => {
     campaign = data;
   }
   const commissions = obj(body.Commissions || body.commissions);
-  const total = amount(pick(body.order_amount, body.total, body.amount, body.value, commissions.charge_amount, product?.price));
+  const directAmount = amount(pick(body.order_amount, body.total, body.amount, body.value));
+  const commissionChargeCents = amount(commissions.charge_amount);
+  const total = directAmount ?? (commissionChargeCents !== null ? commissionChargeCents / 100 : amount(product?.price));
   const currency = String(pick(body.currency, commissions.currency, "BRL")).slice(0, 8);
   const paymentMethod = String(pick(body.payment_method, body.paymentMethod) || "").slice(0, 60) || null;
-  const paidAt = ["paid", "approved"].includes(orderStatus) ? pick(body.approved_at, body.paid_at, body.created_at) || new Date().toISOString() : null;
+  const paidAt = ["paid", "approved"].includes(orderStatus) ? pick(body.approved_date, body.approved_at, body.paid_at, body.created_at) || new Date().toISOString() : null;
   const metadata = {
     source: "kiwify_webhook",
     product_name: productName.slice(0, 180) || null,
