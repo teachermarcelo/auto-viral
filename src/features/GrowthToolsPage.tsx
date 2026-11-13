@@ -35,21 +35,21 @@ export function GrowthToolsPage({active,workspaceId}:{active:string;workspaceId:
  async function generateWithAI(){
   if(!supabase||!workspaceId||!title.trim()){setMessage('Informe o título/tema para orientar a IA.');return;}
   setGenerating(true);setMessage('');
-  const {data,error}=await supabase.functions.invoke('av-gemini-tools',{body:{workspace_id:workspaceId,task:isResearch?'pain_search':'creative',title:title.trim(),context:body.trim(),format:assetType,channel:active}});
+  const {data,error}=await supabase.functions.invoke('av-gemini-tools',{body:{workspace_id:workspaceId,task:isResearch?(active==='Relatórios IA'?'ai_report':'pain_search'):'creative',title:title.trim(),context:body.trim(),format:assetType,channel:active}});
   setGenerating(false);
   if(error||!data?.text){setMessage(error?.message||data?.error||'IA indisponível. Configure GEMINI_API_KEY no Supabase.');return;}
   setBody(data.text);
   setMessage('Rascunho gerado pela IA. Revise os fatos e ajuste antes de publicar.');
  }
  async function save(){
-  if(!supabase||!workspaceId||!title.trim()){setMessage('Informe um título antes de salvar.');return;}
+  if(!supabase||!workspaceId||!(isCity?city.trim():title.trim())){setMessage('Informe um título ou cidade antes de salvar.');return;}
   setSaving(true);setMessage('');
   let payload:Row={workspace_id:workspaceId};
   if(config.table==='av_city_targets')payload={...payload,city:city.trim()||title.trim(),state_code:stateCode,audience:body.trim(),channel:platform,status:'planned',notes:body.trim()||null};
   else if(config.table==='av_social_content')payload={...payload,platform:active==='YouTube'?'youtube':active==='Pinterest'?'pinterest':active==='WhatsApp X1'?'whatsapp':platform,content_type:active==='YouTube'?'video':active==='Pinterest'?'pin':'post',title:title.trim(),caption:body.trim(),status};
   else if(config.table==='av_email_campaigns')payload={...payload,name:title.trim(),subject:title.trim(),html_content:body.trim(),status:'draft'};
 
-  else if(config.table==='av_research_reports')payload={...payload,query:title.trim(),report_type:'pain_search',source_summary:body.trim(),content:{status:'manual_research_note'}};
+  else if(config.table==='av_research_reports')payload={...payload,query:title.trim(),report_type:active==='Relatórios IA'?'ai_report':'pain_search',source_summary:body.trim(),content:{status:'manual_research_note'}};
   else payload={...payload,asset_type:active==='Comentador'?'copy':active==='Funis e páginas'?'copy':assetType,channel:active,title:title.trim(),content:body.trim(),status};
   const {error}=await supabase.from(config.table).insert(payload);
   setSaving(false);
