@@ -5,12 +5,12 @@
   const META = "autoViralMapperMeta";
   let timer = null, busy = false, paused = false;
 
-  const clean = value => String(value || "").replace(/\\s+/g, " ").trim();
+  const clean = value => String(value || "").replace(/\s+/g, " ").trim();
   function normalize(value) {
     try {
       const u = new URL(value, location.href);
-      if (!/(^|\\.)facebook\\.com$/i.test(u.hostname)) return null;
-      const match = u.pathname.match(/^\\/groups\\/([^/?#]+)/i);
+      if (!/(^|\.)facebook\.com$/i.test(u.hostname)) return null;
+      const match = u.pathname.match(/^\/groups\/([^/?#]+)/i);
       if (!match || ["feed", "create", "discover", "joins", "your_groups"].includes(match[1].toLowerCase())) return null;
       return "https://www.facebook.com/groups/" + match[1] + "/";
     } catch { return null; }
@@ -30,10 +30,12 @@
   }
   function bestName(link, card, url) {
     const linkText = clean(link.innerText || link.getAttribute("aria-label"));
-    const lines = (card.innerText || "").split(/\\n+/).map(clean).filter(Boolean);
+    const lines = (card.innerText || "").split(/\n+/).map(clean).filter(Boolean);
     const reject = /^(join|entrar|participar|solicitar para participar|ver mais|see more|public group|grupo público|private group|grupo privado|facebook)$/i;
     const candidate = [linkText, ...lines].find(x => x.length >= 4 && x.length <= 180 && !reject.test(x) && !/^https?:/i.test(x));
-    return candidate || decodeURIComponent(url.split("/groups/")[1].replace(/\\/$/, "")).replace(/[-_]/g, " ").slice(0,180) || "Grupo do Facebook";
+    let fallback = url.split("/groups/")[1].replace(/\/$/, "");
+    try { fallback = decodeURIComponent(fallback); } catch {}
+    return candidate || fallback.replace(/[-_]/g, " ").slice(0,180) || "Grupo do Facebook";
   }
   async function scan() {
     if (busy || paused) return;
@@ -47,11 +49,12 @@
         const card = findCard(link);
         const text = clean(card.innerText || "");
         const name = bestName(link, card, url);
-        const query = new URL(location.href).searchParams.get("q") || new URL(location.href).searchParams.get("query") || "";
+        const currentUrl = new URL(location.href);
+        const query = currentUrl.searchParams.get("q") || currentUrl.searchParams.get("query") || "";
         const hints = [];
-        if (/\\b(private|privado|privada)\\b/i.test(text)) hints.push("Privacidade indicada na página: privado");
-        if (/\\b(public|público|publico)\\b/i.test(text)) hints.push("Privacidade indicada na página: público");
-        if (/\\b(admin approval|aprovação do administrador|aprovação para participar)\\b/i.test(text)) hints.push("Possível aprovação de administrador");
+        if (/\b(private|privado|privada)\b/i.test(text)) hints.push("Privacidade indicada na página: privado");
+        if (/\b(public|público|publico)\b/i.test(text)) hints.push("Privacidade indicada na página: público");
+        if (/\b(admin approval|aprovação do administrador|aprovação para participar)\b/i.test(text)) hints.push("Possível aprovação de administrador");
         found.set(url, {
           url, name, topic: query ? query.slice(0,120) : "Facebook",
           notes: [hints.join("; "), text].filter(Boolean).join(" | ").slice(0,1600),
