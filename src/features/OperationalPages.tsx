@@ -151,6 +151,7 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
     if(url.trim()&&!validHttpUrl(url.trim())){setMessage('Informe uma URL válida.');return;}
     const {error}=await supabase.from('av_campaign_posts').update({status:'published',published_at:new Date().toISOString(),published_url:url.trim()||null,execution_note:'Publicado manualmente e confirmado pelo operador.'}).eq('id',post.id).eq('workspace_id',workspaceId);
     if(error){setMessage('Não foi possível registrar: '+error.message);return;}
+    if(post.campaign_run_id)await refreshRunState(post.campaign_run_id);
     const campaign=campaigns.find(x=>x.id===post.campaign_id);
     if(campaign&&campaign.pause_after_posts>0&&campaign.pause_duration_minutes>0){
       const next=(campaign.posts_since_pause||0)+1;
@@ -182,6 +183,9 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
     const pauseEvery=Math.max(0,campaign.pause_after_posts||0),pauseMs=Math.max(0,campaign.pause_duration_minutes||0)*60000,interval=Math.max(0,campaign.posting_interval_seconds||0)*1000;
     const tasks:any[]=[];
     const destinations=targets.length?targets:[null];
+    const runResult=await supabase.from('av_campaign_runs').insert({workspace_id:workspaceId,campaign_id:campaign.id,name:'Execução '+new Date().toLocaleString('pt-BR'),status:'running',total_groups:targets.length,total_tasks:targets.length*count,started_at:new Date().toISOString()}).select('id').single();
+    if(runResult.error){setMessage('Não foi possível criar a execução: '+runResult.error.message);return;}
+    const runId=runResult.data.id;
     for(const community of destinations){
       let next=start.getTime();
       for(let i=0;i<count;i++){
@@ -197,8 +201,8 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
       }
     }
     const {error}=await supabase.from('av_campaign_posts').insert(tasks);
-    if(error){setMessage('Não foi possível salvar a fila: '+error.message);return;}
-    setMessage(tasks.length+' tarefa(s) persistida(s). A publicação em grupos continua manual; o temporizador controla o ritmo da fila, não envia posts automaticamente.');setScheduleOpen(null);setSelectedCommunityIds([]);await load();
+    if(error){await supabase.from('av_campaign_runs').delete().eq('id',runId).eq('workspace_id',workspaceId);setMessage('Não foi possível salvar a fila: '+error.message);return;}
+    setMessage('Execução criada: '+targets.length+' grupo(s), '+tasks.length+' tarefa(s) persistida(s). A publicação continua manual e a fila fica salva no histórico.');setScheduleOpen(null);setSelectedCommunityIds([]);await load();
   }
   const approvedFor=(channel:string)=>communities.filter(x=>x.status==='approved'&&x.platform===(channel==='whatsapp'?'whatsapp':'facebook'));
   const previewImage=imageFile?URL.createObjectURL(imageFile):form.image_url||products.find(p=>p.id===form.product_id)?.image_url||null;
