@@ -10,7 +10,8 @@ type Campaign = {
   posting_interval_seconds: number; pause_after_posts: number; pause_duration_minutes: number; paused_until?: string | null; posts_since_pause?: number;
 };
 type TrackingLink = { id: string; campaign_id: string | null; code: string; destination_url: string; label: string | null };
-type ScheduledPost = { id: string; campaign_id: string; scheduled_at: string; status: string; copy_snapshot: string; destination_url: string | null; published_url: string | null; channel?: string; media_url?: string|null; community_id?: string|null; tracking_link_id?: string|null; execution_note?: string|null };
+type ScheduledPost = { id: string; campaign_id: string; campaign_run_id?: string|null; scheduled_at: string; status: string; copy_snapshot: string; destination_url: string | null; published_url: string | null; channel?: string; media_url?: string|null; community_id?: string|null; tracking_link_id?: string|null; execution_note?: string|null };
+type CampaignRun = { id:string; campaign_id:string; name:string; status:string; total_groups:number; total_tasks:number; created_at:string; paused_until:string|null };
 type Community = { id: string; name: string; url: string; topic: string; status: string; notes: string | null; platform?: string };
 type CommunityOption = { id:string; name:string; url:string; topic:string; status:string; platform:string };
 
@@ -43,7 +44,7 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
   const [clickCounts,setClickCounts]=useState<Record<string,number>>({});
   const [postClickStats,setPostClickStats]=useState<Record<string,{count:number;hosts:string[];lastClick:string|null}>>({});
   const [clickSeries,setClickSeries]=useState<{label:string;count:number}[]>([]);
-  const [scheduledPosts,setScheduledPosts]=useState<ScheduledPost[]>([]);
+  const [scheduledPosts,setScheduledPosts]=useState<ScheduledPost[]>([]);\n  const [runs,setRuns]=useState<CampaignRun[]>([]);
   const [leadsByCampaign,setLeadsByCampaign]=useState<Record<string,{count:number;cities:string[]}>>({});
   const [loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[message,setMessage]=useState('');
   const [scheduleOpen,setScheduleOpen]=useState<string|null>(null),[scheduleCount,setScheduleCount]=useState(1);
@@ -57,11 +58,11 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
   const load=useCallback(async()=>{
     if(!supabase||!workspaceId){setLoading(false);return;}
     setLoading(true);
-    const [pr,cr,lr,postr,leadR,communityR]=await Promise.all([
+    const [pr,cr,lr,postr,runr,leadR,communityR]=await Promise.all([
       supabase.from('av_products').select('id,name,image_url').eq('workspace_id',workspaceId).order('name'),
       supabase.from('av_campaigns').select('id,name,product_id,objective,status,channel,copy_text,destination_url,image_url,video_url,posting_interval_seconds,pause_after_posts,pause_duration_minutes,paused_until,posts_since_pause').eq('workspace_id',workspaceId).order('created_at',{ascending:false}),
       supabase.from('av_tracking_links').select('id,campaign_id,code,destination_url,label').eq('workspace_id',workspaceId).order('created_at',{ascending:false}),
-      supabase.from('av_campaign_posts').select('id,campaign_id,scheduled_at,status,copy_snapshot,destination_url,published_url,channel,media_url,community_id,tracking_link_id,execution_note').eq('workspace_id',workspaceId).order('scheduled_at',{ascending:true}),
+      supabase.from('av_campaign_posts').select('id,campaign_id,campaign_run_id,scheduled_at,status,copy_snapshot,destination_url,published_url,channel,media_url,community_id,tracking_link_id,execution_note').eq('workspace_id',workspaceId).order('scheduled_at',{ascending:true}),\n      supabase.from('av_campaign_runs').select('id,campaign_id,name,status,total_groups,total_tasks,created_at,paused_until').eq('workspace_id',workspaceId).order('created_at',{ascending:false}),
       supabase.from('av_leads').select('campaign_id,city').eq('workspace_id',workspaceId),
       supabase.from('av_communities').select('id,name,url,topic,status,platform').eq('workspace_id',workspaceId).order('name')
     ]);
@@ -80,7 +81,7 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
     setProducts((pr.data??[]) as ProductOption[]);
     setCampaigns(campaignRows);
     setLinks((lr.data??[]) as TrackingLink[]);
-    setScheduledPosts((postr.data??[]) as ScheduledPost[]);
+    setScheduledPosts((postr.data??[]) as ScheduledPost[]);\n    setRuns((runr.data??[]) as CampaignRun[]);
     setCommunities((communityR.data??[]) as CommunityOption[]);
     const leadStats:Record<string,{count:number;cities:string[]}>={};
     for(const lead of leadR.data??[]){if(!lead.campaign_id)continue;leadStats[lead.campaign_id]??={count:0,cities:[]};leadStats[lead.campaign_id].count++;if(lead.city&&!leadStats[lead.campaign_id].cities.includes(lead.city))leadStats[lead.campaign_id].cities.push(lead.city);}
@@ -175,7 +176,7 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
           if(error){setMessage('Falha ao criar link exclusivo para '+community.name+': '+error.message);return;}
           trackingLinkId=data.id;
         }
-        tasks.push({workspace_id:workspaceId,campaign_id:campaign.id,community_id:community?.id||null,tracking_link_id:trackingLinkId,channel:'manual',scheduled_at:new Date(next).toISOString(),status:'scheduled',copy_snapshot:campaign.copy_text,media_url:campaign.image_url||campaign.video_url,destination_url:trackingLinkId?CLICK_URL+(await supabase.from('av_tracking_links').select('code').eq('id',trackingLinkId).single()).data?.code:campaign.destination_url});
+        tasks.push({workspace_id:workspaceId,campaign_id:campaign.id,campaign_run_id:runId,community_id:community?.id||null,tracking_link_id:trackingLinkId,channel:'manual',scheduled_at:new Date(next).toISOString(),status:'scheduled',copy_snapshot:campaign.copy_text,media_url:campaign.image_url||campaign.video_url,destination_url:trackingLinkId?CLICK_URL+(await supabase.from('av_tracking_links').select('code').eq('id',trackingLinkId).single()).data?.code:campaign.destination_url});
         next+=interval;if(pauseEvery>0&&(i+1)%pauseEvery===0&&i+1<count)next+=pauseMs;
       }
     }
