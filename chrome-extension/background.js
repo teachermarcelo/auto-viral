@@ -9,6 +9,19 @@ async function sync(){if(running)return;running=true;try{const s=await state(),s
 let done=[];for(let i=0;i<groups.length;i+=30){const batch=groups.slice(i,i+30),urls=[...new Set(batch.map(g=>norm(g.url)))],filter="("+urls.map(v=>'"'+v.replace(/"/g,'\\\\\\"')+'"').join(",")+")",existing=await request("/rest/v1/av_communities?select=normalized_url&workspace_id=eq."+encodeURIComponent(workspaceId)+"&normalized_url=in."+encodeURIComponent(filter),{},session.access_token),known=new Set((existing||[]).map(x=>x.normalized_url)),rows=batch.filter(g=>!known.has(norm(g.url))).map(g=>({workspace_id:workspaceId,name:(g.name||"Grupo do Facebook").slice(0,180),url:g.url,normalized_url:norm(g.url),topic:(g.topic||"Facebook").slice(0,120),notes:("Capturado automaticamente pela extensão AutoViral em "+(g.captured_at||new Date().toISOString())+". "+("Pesquisa: "+(g.search_query||"não identificada")+". Origem: "+(g.source_url||"Facebook")+". "+(g.notes||""))).slice(0,2000),status:"to_review"}));if(rows.length)await request("/rest/v1/av_communities",{method:"POST",body:JSON.stringify(rows)},session.access_token);done.push(...batch.map(g=>g.url));}
 const latest=await state(),all=new Set([...(latest.autoViralSentUrls||[]),...done]);await chrome.storage.local.set({autoViralSentUrls:[...all],autoViralLastSync:{at:new Date().toISOString(),count:done.length,status:"success"}});}catch(e){await chrome.storage.local.set({autoViralLastSync:{at:new Date().toISOString(),status:"error",message:String(e?.message||e)}});}finally{running=false;}}
 chrome.runtime.onMessage.addListener((message,sender,sendResponse)=>{
+ if(message?.type==="AUTOVIRAL_OPEN_GROUP_TASK"){
+  const appUrl="https://teachermarcelo.github.io/auto-viral/";
+  if(sender.frameId!==0||!sender.url?.startsWith(appUrl)||!sender.tab?.url?.startsWith(appUrl)){sendResponse({ok:false,error:"Origem da tarefa não autorizada."});return;}
+  (async()=>{const task=message.task||{};let parsed;try{parsed=new URL(task.url);}catch{throw Error("URL do grupo inválida.");}
+   if(!["facebook.com","www.facebook.com"].includes(parsed.hostname)||parsed.protocol!=="https:"||!/^\\/groups\\/[A-Za-z0-9._-]+\\/?$/.test(parsed.pathname))throw Error("Somente URLs HTTPS de grupos do Facebook são aceitas.");
+   if(typeof task.copy!=="string"||!task.copy.trim()||task.copy.length>10000)throw Error("Texto da campanha inválido ou acima de 10.000 caracteres.");
+   const activeTask={url:"https://www.facebook.com"+parsed.pathname,title:String(task.title||"Tarefa AutoViral").slice(0,180),copy:task.copy,postId:String(task.postId||"").slice(0,80),campaignId:String(task.campaignId||"").slice(0,80),created_at:new Date().toISOString(),state:"ready"};
+   await chrome.storage.local.set({activeTask});
+   await chrome.tabs.create({url:activeTask.url,active:true});
+   return {ok:true};
+  })().then(sendResponse).catch(e=>sendResponse({ok:false,error:e?.message||"Não foi possível abrir a tarefa."}));
+  return true;
+ }
  if(message?.type==="AUTOVIRAL_SYNC_NOW"){void sync().then(()=>state()).then(s=>sendResponse({ok:true,last:s.autoViralLastSync||null})).catch(e=>sendResponse({ok:false,error:String(e?.message||e)}));return true;}
  if(message?.type!=="AUTOVIRAL_SHARE_SESSION"||!sender.url?.startsWith("https://teachermarcelo.github.io/auto-viral/"))return; (async()=>{try{const candidate=message.session;if(!candidate?.access_token||!candidate?.refresh_token)throw Error("Sessão inválida.");await request("/auth/v1/user",{},candidate.access_token);await saveSession(candidate);await chrome.storage.local.set({autoViralLastSync:{at:new Date().toISOString(),status:"session",message:"Sessão do AutoViral reconhecida. Sincronização automática ativa."}});void sync();sendResponse({ok:true});}catch(e){sendResponse({ok:false,error:String(e?.message||e)});}})();return true;});
 chrome.storage.onChanged.addListener((changes,area)=>{if(area==="local"&&(changes[GROUPS]||changes.autoViralAuthSession))void sync();});
