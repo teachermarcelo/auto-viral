@@ -13,7 +13,8 @@ chrome.runtime.onMessage.addListener((message,sender,sendResponse)=>{
   const appUrl="https://teachermarcelo.github.io/auto-viral/";
   if(sender.frameId!==0||!sender.url?.startsWith(appUrl)||!sender.tab?.url?.startsWith(appUrl)){sendResponse({ok:false,error:"Origem da tarefa não autorizada."});return;}
   (async()=>{const task=message.task||{};let parsed;try{parsed=new URL(task.url);}catch{throw Error("URL do grupo inválida.");}
-   if(!["facebook.com","www.facebook.com"].includes(parsed.hostname)||parsed.protocol!=="https:"||!/^\\/groups\\/[A-Za-z0-9._-]+\\/?$/.test(parsed.pathname))throw Error("Somente URLs HTTPS de grupos do Facebook são aceitas.");
+   const parts=parsed.pathname.split("/").filter(Boolean);
+   if(!["facebook.com","www.facebook.com"].includes(parsed.hostname)||parsed.protocol!=="https:"||parts.length!==2||parts[0]!=="groups"||!/^[A-Za-z0-9._-]+$/.test(parts[1]))throw Error("Somente URLs HTTPS de grupos do Facebook são aceitas.");
    if(typeof task.copy!=="string"||!task.copy.trim()||task.copy.length>10000)throw Error("Texto da campanha inválido ou acima de 10.000 caracteres.");
    const activeTask={url:"https://www.facebook.com"+parsed.pathname,title:String(task.title||"Tarefa AutoViral").slice(0,180),copy:task.copy,postId:String(task.postId||"").slice(0,80),campaignId:String(task.campaignId||"").slice(0,80),created_at:new Date().toISOString(),state:"ready"};
    await chrome.storage.local.set({activeTask});
