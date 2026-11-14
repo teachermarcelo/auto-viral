@@ -2,7 +2,11 @@ const GROUPS = "autoViralDiscoveredGroups";
 const $ = selector => document.querySelector(selector);
 const safe = value => String(value ?? "").replace(/[&<>"']/g, char => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]));
 async function getState() {
-  return chrome.storage.local.get({[GROUPS]:[],autoViralAuthSession:null,autoViralSentUrls:[],autoViralMapperPaused:false,autoViralLastSync:null,autoViralMapperMeta:{}});
+  const [local, session] = await Promise.all([
+    chrome.storage.local.get({[GROUPS]:[],autoViralSentUrls:[],autoViralMapperPaused:false,autoViralLastSync:null,autoViralMapperMeta:{}}),
+    chrome.storage.session.get({autoViralAuthSession:null})
+  ]);
+  return {...local,...session};
 }
 function status(message, kind = "") {
   const node = $("#status");
@@ -70,7 +74,7 @@ $("#send").addEventListener("click", async () => {
   await render();
 });
 $("#disconnect").addEventListener("click", async () => {
-  await chrome.storage.local.remove("autoViralAuthSession");
+  await chrome.storage.session.remove("autoViralAuthSession");
   await render();
 });
 $("#export").addEventListener("click", async () => {
@@ -88,5 +92,5 @@ $("#clear").addEventListener("click", async () => {
 });
 (async () => {
   await render();
-  chrome.storage.onChanged.addListener((changes, area) => { if (area === "local") void render(); });
+  chrome.storage.onChanged.addListener((changes, area) => { if (area === "local" || area === "session") void render(); });
 })();
