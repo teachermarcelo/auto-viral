@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "AutoViral AI — Robot Assistido",
+  "version": "1.0.0",
+  "description": "Assistente de navegador para organizar tarefas autorizadas do AutoViral AI no Facebook.",
+  "permissions": [
+    "storage",
+    "tabs",
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://www.facebook.com/*",
+    "https://teachermarcelo.github.io/auto-viral/*"
+  ],
+  "action": {
+    "default_title": "AutoViral AI",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.facebook.com/groups/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}
