@@ -4,6 +4,8 @@ Extensão Chrome Manifest V3 para mapear links de grupos públicos que aparecem 
 
 ## Instalação / atualização
 
+**Use somente esta extensão oficial.** Se você tiver instalado uma extensão experimental separada chamada “Robot Engine” a partir da antiga pasta `extension/`, remova-a em `chrome://extensions`. A versão oficial agora reúne o Mapeador e o Robot Assistido em `chrome-extension/`.
+
 1. Baixe o ZIP `autoviral-chrome-extension` na execução mais recente do workflow **Package AutoViral Chrome Extension** do repositório.
 2. Extraia o ZIP em uma pasta local.
 3. Abra `chrome://extensions`, ative **Modo do desenvolvedor**, remova a versão anterior e clique em **Carregar sem compactação**.
