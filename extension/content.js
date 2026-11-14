@@ -30,5 +30,5 @@
    shadow.getElementById('done').textContent='Revisão registrada ✓';
   });
  };
- render();chrome.storage.onChanged.addListener(render);
+ render();chrome.storage.onChanged.addListener(()=>{document.getElementById(ROOT_ID)?.remove();render();});
 })();
