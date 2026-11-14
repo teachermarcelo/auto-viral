@@ -1,4 +1,4 @@
-# AutoViral AI — Mapeador de Grupos (0.4.3)
+# AutoViral AI — Mapeador + Robot Assistido (0.4.4)
 
 Extensão Chrome Manifest V3 para mapear links de grupos públicos que aparecem nos resultados carregados pelo próprio usuário no Facebook e sincronizá-los com a tabela `av_communities` do workspace conectado.
 
@@ -44,3 +44,8 @@ Os grupos são salvos no AutoViral em **Grupos e oportunidades**, com status ini
 ## Validação
 
 O workflow do repositório verifica o build do frontend e empacota a extensão. O teste final de captura/sincronização exige executar o Chrome conectado à sua conta do Facebook e ao workspace AutoViral.
+
+
+## Execução assistida de tarefas
+
+Na fila de Campanhas do AutoViral, use **Abrir grupo e copiar postagem**. A plataforma envia a URL e o texto da tarefa à extensão instalada, que abre o grupo e mostra um painel local com ações de copiar texto e marcar revisão. A extensão não solicita entrada, não publica e não clica em controles do Facebook. O operador continua responsável por ler as regras, pedir participação e publicar quando permitido.
