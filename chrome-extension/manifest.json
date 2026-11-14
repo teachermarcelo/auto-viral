@@ -1,0 +1,56 @@
+{
+  "manifest_version": 3,
+  "name": "AutoViral AI — Robot Assistido",
+  "version": "0.4.5",
+  "description": "Executa a fila assistida do AutoViral, abrindo grupos no horário e preparando texto, imagem e link rastreável para revisão manual.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "alarms"
+  ],
+  "host_permissions": [
+    "https://www.facebook.com/*",
+    "https://facebook.com/*",
+    "https://nuyzvpkvawixidotuuio.supabase.co/*",
+    "https://teachermarcelo.github.io/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.facebook.com/*",
+        "https://facebook.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://teachermarcelo.github.io/auto-viral/*"
+      ],
+      "js": [
+        "platform-bridge.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.facebook.com/groups/*",
+        "https://facebook.com/groups/*"
+      ],
+      "js": [
+        "task-panel.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "AutoViral AI — Robô Assistido",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  }
+}
