@@ -62,6 +62,8 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
   const generatingRunRef=useRef(false);
   const [generatingRun,setGeneratingRun]=useState(false);
   const [clock,setClock]=useState(Date.now());
+  const [assistantRunId,setAssistantRunId]=useState<string|null>(null);
+  const assistantDispatchingRef=useRef(false);
   const [form,setForm]=useState({name:'',product_id:'',objective:'organic_traffic',channel:'facebook_group',copy_text:'',destination_url:'',image_url:'',video_url:'',posting_interval_seconds:400,pause_after_posts:5,pause_duration_minutes:30});
 
   const load=useCallback(async()=>{
@@ -117,6 +119,7 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
   },[workspaceId]);
   useEffect(()=>{void load();},[load]);
   useEffect(()=>{const id=window.setInterval(()=>{const now=Date.now();setClock(now);if(campaigns.some(x=>x.status==='paused'&&x.paused_until&&new Date(x.paused_until).getTime()<=now))void load();const expiredRuns=runs.filter(r=>r.status==='paused'&&r.paused_until&&new Date(r.paused_until).getTime()<=now);if(expiredRuns.length&&supabase&&workspaceId){void supabase.from('av_campaign_runs').update({status:'running',paused_until:null,updated_at:new Date().toISOString()}).eq('workspace_id',workspaceId).in('id',expiredRuns.map(r=>r.id)).eq('status','paused').then(()=>void load());}},1000);return()=>window.clearInterval(id);},[campaigns,runs,workspaceId,load]);
+  useEffect(()=>{if(!assistantRunId||!supabase||!workspaceId)return;const tick=()=>{if(assistantDispatchingRef.current)return;const run=runs.find(r=>r.id===assistantRunId);if(!run||!['queued','running'].includes(run.status)){setAssistantRunId(null);return;}const runPosts=scheduledPosts.filter(p=>p.campaign_run_id===assistantRunId);const openedAwaitingConfirmation=runPosts.some(p=>p.status==='scheduled'&&p.execution_note?.includes('|AUTO_OPENED:'));if(openedAwaitingConfirmation)return;const campaign=campaigns.find(c=>c.id===run.campaign_id);if(!campaign||campaign.status==='paused')return;const now=Date.now();const next=runPosts.filter(p=>p.status==='scheduled'&&p.execution_note?.startsWith('JOIN_APPROVED:')&&!p.execution_note.includes('|AUTO_OPENED:')&&new Date(p.scheduled_at).getTime()<=now).sort((a,b)=>new Date(a.scheduled_at).getTime()-new Date(b.scheduled_at).getTime())[0];if(!next)return;const group=communities.find(g=>g.id===next.community_id);if(!group?.url){setMessage('Robô pausado: a próxima tarefa não tem grupo válido vinculado.');setAssistantRunId(null);return;}assistantDispatchingRef.current=true;void dispatchAssistantTask(next,group).finally(()=>{assistantDispatchingRef.current=false;});};const id=window.setInterval(tick,1000);tick();return()=>window.clearInterval(id);},[assistantRunId,scheduledPosts,runs,campaigns,communities,workspaceId]);
 
   function resetForm(){setForm({name:'',product_id:'',objective:'organic_traffic',channel:'facebook_group',copy_text:'',destination_url:'',image_url:'',video_url:'',posting_interval_seconds:400,pause_after_posts:5,pause_duration_minutes:30});setEditingCampaignId(null);setImageFile(null);}
   function openPasteComposer(c:Campaign){
@@ -222,6 +225,37 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
     const timeout=window.setTimeout(()=>fallback('O AutoViral não recebeu resposta da extensão.'),1800);
     window.postMessage({source:'AUTOVIRAL_WEB',type:'OPEN_GROUP_TASK',requestId,task:{url:group.url,title:campaigns.find(c=>c.id===post.campaign_id)?.name||'Tarefa AutoViral',copy:post.copy_snapshot,postId:post.id,campaignId:post.campaign_id}},'https://teachermarcelo.github.io');
   }
+  async function dispatchAssistantTask(post:ScheduledPost,group:CommunityOption){
+    if(!supabase||!workspaceId)return;
+    const requestId=crypto.randomUUID();
+    const campaign=campaigns.find(c=>c.id===post.campaign_id);
+    const baseCopy=post.copy_snapshot||'';
+    const copy=post.destination_url&&!baseCopy.includes(post.destination_url)?baseCopy+'\n\n'+post.destination_url:baseCopy;
+    const task={url:group.url,title:campaign?.name||'Tarefa AutoViral',copy,mediaUrl:post.media_url||null,trackingUrl:post.destination_url||null,postId:post.id,campaignId:post.campaign_id};
+    const result=await new Promise<{ok:boolean;error?:string}>(resolve=>{
+      let settled=false;
+      const finish=(value:{ok:boolean;error?:string})=>{if(settled)return;settled=true;window.removeEventListener('message',onResult);window.clearTimeout(timeout);resolve(value);};
+      const onResult=(event:MessageEvent)=>{if(event.source!==window||event.origin!==location.origin)return;const data=event.data;if(data?.source!=='AUTOVIRAL_EXTENSION'||data?.type!=='TASK_RESULT'||data?.requestId!==requestId)return;finish({ok:!!data.ok,error:data.error});};
+      const timeout=window.setTimeout(()=>finish({ok:false,error:'A extensão não respondeu. Verifique se está instalada, ativa e conectada ao AutoViral.'}),5000);
+      window.addEventListener('message',onResult);
+      window.postMessage({source:'AUTOVIRAL_WEB',type:'OPEN_GROUP_TASK',requestId,task},location.origin);
+    });
+    if(!result.ok){setMessage('Robô pausado: '+(result.error||'não foi possível abrir a próxima tarefa.'));setAssistantRunId(null);return;}
+    const note=(post.execution_note||'')+'|AUTO_OPENED:'+new Date().toISOString();
+    const {error}=await supabase.from('av_campaign_posts').update({execution_note:note}).eq('id',post.id).eq('workspace_id',workspaceId).eq('status','scheduled');
+    if(error){setMessage('O grupo foi aberto, mas não foi possível registrar o controle da tarefa: '+error.message);setAssistantRunId(null);return;}
+    setMessage('Robô assistido: grupo aberto e postagem preparada com imagem e link rastreável. Revise e publique manualmente; depois registre como postado para liberar a próxima tarefa.');
+    await load();
+  }
+  async function startAssistantRun(run:CampaignRun){
+    if(!supabase||!workspaceId)return;
+    const {error}=await supabase.from('av_campaign_runs').update({status:'running',started_at:new Date().toISOString(),paused_until:null,updated_at:new Date().toISOString()}).eq('id',run.id).eq('workspace_id',workspaceId);
+    if(error){setMessage('Não foi possível iniciar o robô: '+error.message);return;}
+    setAssistantRunId(run.id);
+    setMessage('Robô assistido iniciado. Ele aguardará cada tarefa aprovada e abrirá uma por vez no horário programado. Mantenha esta aba aberta.');
+    await load();
+  }
+  function stopAssistantRun(){setAssistantRunId(null);setMessage('Robô assistido interrompido. A fila e os horários permanecem salvos.');}
   async function markPostPublished(post:ScheduledPost){
     if(!supabase||!workspaceId)return;
     const url=window.prompt('Cole o link da publicação (opcional):',post.destination_url||'');if(url===null)return;
@@ -246,6 +280,7 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
   }
   async function pauseRun(run:CampaignRun,paused:boolean){
     if(!supabase||!workspaceId)return;
+    if(paused&&assistantRunId===run.id)setAssistantRunId(null);
     const {error}=await supabase.from('av_campaign_runs').update({status:paused?'paused':'running',paused_until:paused?new Date(Date.now()+30*60000).toISOString():null,updated_at:new Date().toISOString()}).eq('id',run.id).eq('workspace_id',workspaceId);
     if(error)setMessage(error.message);else await load();
   }
@@ -345,7 +380,7 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
           <div className="av-run-card-summary"><div><strong>{postedGroups}/{run.total_groups}</strong><small>grupos com post</small></div><div><strong>{published}</strong><small>publicados</small></div><div><strong>{pending}</strong><small>pendentes</small></div><div><strong>{waiting}</strong><small>aguardando</small></div><div><strong>{failed+cancelled}</strong><small>falhas/cancelados</small></div></div>
           <div className="av-run-progress"><div style={{width:percent+'%'}}/></div>
           {state==='paused'&&<p className="av-cooldown">Execução pausada {remaining>0?'· retoma em '+Math.floor(remaining/60)+'m '+remaining%60+'s':'· aguardando retomada'}</p>}
-          {expanded&&<div className="av-run-details"><div className="av-run-detail-actions">{['running','queued'].includes(run.status)&&<button className="av-button secondary small" onClick={()=>void pauseRun(run,true)}>Pausar</button>}{run.status==='paused'&&<button className="av-button primary small" onClick={()=>void pauseRun(run,false)}>Retomar</button>}{['running','paused','queued'].includes(run.status)&&<button className="av-button danger small" onClick={()=>void stopRun(run)}>Parar execução</button>}<button className="av-button danger-outline small" onClick={()=>void deleteRun(run)}><Trash2 size={13}/> Excluir</button><span>{tasks.length} tarefa(s) nesta execução</span></div>
+          {expanded&&<div className="av-run-details"><div className="av-run-detail-actions">{assistantRunId===run.id?<button className="av-button danger small" onClick={stopAssistantRun}>Parar robô assistido</button>:['running','queued'].includes(run.status)&&<button className="av-button primary small" onClick={()=>void startAssistantRun(run)}>Iniciar robô assistido</button>}{['running','queued'].includes(run.status)&&<button className="av-button secondary small" onClick={()=>void pauseRun(run,true)}>Pausar fila</button>}{run.status==='paused'&&<button className="av-button primary small" onClick={()=>void pauseRun(run,false)}>Retomar</button>}{['running','paused','queued'].includes(run.status)&&<button className="av-button danger small" onClick={()=>void stopRun(run)}>Parar execução</button>}<button className="av-button danger-outline small" onClick={()=>void deleteRun(run)}><Trash2 size={13}/> Excluir</button><span>{tasks.length} tarefa(s) nesta execução</span></div>
             {tasks.map(post=>{const group=communities.find(g=>g.id===post.community_id);return <div className="av-run-task" key={post.id}><span className={'av-task-status '+post.status}>{statusText(post.status)}</span><span>{group?.name||'Sem grupo vinculado'}</span><small>{new Date(post.scheduled_at).toLocaleString('pt-BR')}</small></div>;})}
           </div>}
         </article>;})}</div>}
