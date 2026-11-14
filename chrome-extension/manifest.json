@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "AutoViral AI — Mapeador de Grupos",
+  "name": "AutoViral AI — Robot Assistido",
   "version": "0.4.4",
   "description": "Mapeia grupos públicos e prepara tarefas assistidas de campanha no AutoViral AI.",
   "permissions": [
