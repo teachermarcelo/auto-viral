@@ -195,11 +195,26 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
   }
   async function openGroupForPost(post:ScheduledPost,group:CommunityOption|null){
     if(!group?.url){setMessage('Esta tarefa não tem um grupo vinculado.');return;}
-    const opened=window.open(group.url,'_blank');
-    if(!opened){setMessage('O navegador bloqueou a abertura do grupo. Permita pop-ups para o AutoViral e tente novamente.');return;}
-    opened.opener=null;
-    try{await navigator.clipboard.writeText(post.copy_snapshot||'');setMessage('Grupo aberto e texto copiado. Revise o conteúdo e publique manualmente, se permitido pelas regras do grupo.');}
-    catch{setMessage('Grupo aberto. Copie o texto da postagem na própria tarefa e cole no Facebook.');}
+    const requestId=crypto.randomUUID();
+    const onResult=(event:MessageEvent)=>{
+      if(event.source!==window||event.origin!=='https://teachermarcelo.github.io')return;
+      const data=event.data;
+      if(data?.source!=='AUTOVIRAL_EXTENSION'||data?.type!=='TASK_RESULT'||data?.requestId!==requestId)return;
+      window.removeEventListener('message',onResult);
+      window.clearTimeout(timeout);
+      if(data.ok)setMessage('Robô conectado: tarefa enviada à extensão e grupo aberto. Revise as regras e conclua manualmente qualquer ação que exija autorização.');
+      else fallback(data.error||'Extensão não disponível.');
+    };
+    const fallback=(reason:string)=>{
+      window.removeEventListener('message',onResult);
+      const opened=window.open(group.url,'_blank');
+      if(!opened){setMessage(reason+' Permita pop-ups ou recarregue a extensão no Chrome.');return;}
+      opened.opener=null;
+      void navigator.clipboard.writeText(post.copy_snapshot||'').then(()=>setMessage('Extensão não conectada ('+reason+'). Grupo aberto e texto copiado como alternativa.'),()=>setMessage('Extensão não conectada ('+reason+'). Grupo aberto; copie o texto manualmente.'));
+    };
+    window.addEventListener('message',onResult);
+    const timeout=window.setTimeout(()=>fallback('O AutoViral não recebeu resposta da extensão.'),1800);
+    window.postMessage({source:'AUTOVIRAL_WEB',type:'OPEN_GROUP_TASK',requestId,task:{url:group.url,title:campaigns.find(c=>c.id===post.campaign_id)?.name||'Tarefa AutoViral',copy:post.copy_snapshot,postId:post.id,campaignId:post.campaign_id}},'https://teachermarcelo.github.io');
   }
   async function markPostPublished(post:ScheduledPost){
     if(!supabase||!workspaceId)return;
