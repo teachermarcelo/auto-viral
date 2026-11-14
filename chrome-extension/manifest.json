@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "AutoViral AI — Robot Assistido",
-  "version": "0.4.4",
-  "description": "Mapeia grupos públicos e prepara tarefas assistidas de campanha no AutoViral AI.",
+  "version": "0.4.5",
+  "description": "Executa a fila assistida do AutoViral, abrindo grupos no horário e preparando texto, imagem e link rastreável para revisão manual.",
   "permissions": [
     "activeTab",
     "scripting",
@@ -47,7 +47,7 @@
     }
   ],
   "action": {
-    "default_title": "AutoViral AI — Mapeador de Grupos",
+    "default_title": "AutoViral AI — Robô Assistido",
     "default_popup": "popup.html"
   },
   "background": {
