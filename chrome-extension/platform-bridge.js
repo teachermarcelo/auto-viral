@@ -43,4 +43,16 @@
   });
   void publishSession();
   setInterval(schedule, 8000);
+
+  window.addEventListener("message", async event => {
+    if (event.source !== window || event.origin !== location.origin || location.origin !== "https://teachermarcelo.github.io") return;
+    const data = event.data;
+    if (!data || data.source !== "AUTOVIRAL_WEB" || data.type !== "OPEN_GROUP_TASK" || typeof data.requestId !== "string") return;
+    try {
+      const result = await chrome.runtime.sendMessage({ type: "AUTOVIRAL_OPEN_GROUP_TASK", task: data.task });
+      window.postMessage({ source: "AUTOVIRAL_EXTENSION", type: "TASK_RESULT", requestId: data.requestId, ...(result || { ok: false, error: "Extensão sem resposta." }) }, location.origin);
+    } catch (error) {
+      window.postMessage({ source: "AUTOVIRAL_EXTENSION", type: "TASK_RESULT", requestId: data.requestId, ok: false, error: String(error?.message || "Extensão indisponível.") }, location.origin);
+    }
+  });
 })();
