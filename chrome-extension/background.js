@@ -16,7 +16,7 @@ chrome.runtime.onMessage.addListener((message,sender,sendResponse)=>{
    const parts=parsed.pathname.split("/").filter(Boolean);
    if(!["facebook.com","www.facebook.com"].includes(parsed.hostname)||parsed.protocol!=="https:"||parts.length!==2||parts[0]!=="groups"||!/^[A-Za-z0-9._-]+$/.test(parts[1]))throw Error("Somente URLs HTTPS de grupos do Facebook são aceitas.");
    if(typeof task.copy!=="string"||!task.copy.trim()||task.copy.length>10000)throw Error("Texto da campanha inválido ou acima de 10.000 caracteres.");
-   const activeTask={url:"https://www.facebook.com"+parsed.pathname,title:String(task.title||"Tarefa AutoViral").slice(0,180),copy:task.copy,postId:String(task.postId||"").slice(0,80),campaignId:String(task.campaignId||"").slice(0,80),created_at:new Date().toISOString(),state:"ready"};
+   if(task.mediaUrl){let media;try{media=new URL(task.mediaUrl);}catch{throw Error("URL da imagem inválida.");}if(media.protocol!=="https:")throw Error("A imagem precisa usar HTTPS.");}if(task.trackingUrl){let tracking;try{tracking=new URL(task.trackingUrl);}catch{throw Error("Link rastreável inválido.");}if(tracking.protocol!=="https:")throw Error("O link rastreável precisa usar HTTPS.");}const activeTask={url:"https://www.facebook.com"+parsed.pathname,title:String(task.title||"Tarefa AutoViral").slice(0,180),copy:task.copy,mediaUrl:task.mediaUrl||null,trackingUrl:task.trackingUrl||null,postId:String(task.postId||"").slice(0,80),campaignId:String(task.campaignId||"").slice(0,80),created_at:new Date().toISOString(),state:"ready"};
    await chrome.storage.local.set({activeTask});
    await chrome.tabs.create({url:activeTask.url,active:true});
    return {ok:true};
