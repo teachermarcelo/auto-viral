@@ -2,7 +2,7 @@
   if (window.top !== window || window.__autoViralTaskPanelLoaded) return;
   window.__autoViralTaskPanelLoaded = true;
   const ROOT_ID = "autoviral-queue-task-panel";
-  const normalize = value => { try { const u=new URL(value); return u.hostname.replace(/^www\\./,"")+u.pathname.replace(/\\/$/,""); } catch { return ""; } };
+  const normalize = value => { try { const u=new URL(value); const host=u.hostname.startsWith("www.")?u.hostname.slice(4):u.hostname; const path=u.pathname.endsWith("/")?u.pathname.slice(0,-1):u.pathname; return host+path; } catch { return ""; } };
   async function render() {
     const { activeTask } = await chrome.storage.local.get("activeTask");
     const current = normalize(location.href);
