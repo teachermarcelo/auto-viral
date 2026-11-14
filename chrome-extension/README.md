@@ -34,7 +34,7 @@ Os grupos são salvos no AutoViral em **Grupos e oportunidades**, com status ini
 
 ## Segurança e limites
 
-- A extensão usa a sessão autenticada do Supabase do próprio AutoViral; não pede sua senha no popup.
+- A extensão reconhece a sessão autenticada do AutoViral; não pede sua senha no popup. O token de atualização fica apenas em `chrome.storage.session` e é descartado ao encerrar a sessão do navegador.
 - Não contém service-role key.
 - Não entra em grupos, não publica, não curte, não comenta e não envia mensagens.
 - Não contorna CAPTCHA, bloqueios ou limites da plataforma.
