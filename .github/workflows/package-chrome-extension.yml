@@ -23,6 +23,7 @@ jobs:
         run: |
           node --check chrome-extension/background.js
           node --check chrome-extension/content.js
+          node --check chrome-extension/task-panel.js
           node --check chrome-extension/platform-bridge.js
           node --check chrome-extension/popup.js
       - name: Verify manifest entrypoints
