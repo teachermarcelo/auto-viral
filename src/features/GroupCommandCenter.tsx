@@ -23,7 +23,7 @@ export function GroupCommandCenter({workspaceId,initialTab='all'}:{workspaceId:s
   setLoading(false);
  },[workspaceId]);
  useEffect(()=>{void load();},[load]);
- const counts=useMemo(()=>({all:groups.length,mapped:groups.filter(g=>['mapped','not_requested'].includes(g.membership_status)).length,pending:groups.filter(g=>g.membership_status==='request_pending').length,joined:groups.filter(g=>g.membership_status==='joined').length,rejected:groups.filter(g=>g.membership_status==='rejected').length}),[groups]);
+ const counts=useMemo(()=>({all:groups.length,recent:groups.length,mapped:groups.filter(g=>['mapped','not_requested'].includes(g.membership_status)).length,pending:groups.filter(g=>g.membership_status==='request_pending').length,joined:groups.filter(g=>g.membership_status==='joined').length,rejected:groups.filter(g=>g.membership_status==='rejected').length}),[groups]);
  const recentGroups=[...groups].sort((a,b)=>new Date(b.created_at||0).getTime()-new Date(a.created_at||0).getTime());
  const shown=(tab==='recent'?recentGroups:groups).filter(g=>(tab==='all'||tab==='recent'||(tab==='mapped'?['mapped','not_requested'].includes(g.membership_status):tab==='pending'?g.membership_status==='request_pending':g.membership_status===tab))&&(!query||[g.name,g.topic,g.url].join(' ').toLowerCase().includes(query.toLowerCase())));
  const acceptedSelected=groups.filter(g=>selected.includes(g.id)&&g.membership_status==='joined');
