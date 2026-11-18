@@ -335,7 +335,7 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
           }
           trackingLinkId=data.id;trackingCode=data.code;
         }
-        tasks.push({workspace_id:workspaceId,campaign_id:campaign.id,campaign_run_id:runId,community_id:community?.id||null,tracking_link_id:trackingLinkId,channel:campaign.channel,scheduled_at:new Date(next).toISOString(),status:'scheduled',copy_snapshot:campaign.copy_text,media_url:campaign.image_url||campaign.video_url,destination_url:trackingCode?CLICK_URL+trackingCode:campaign.destination_url});
+        tasks.push({workspace_id:workspaceId,campaign_id:campaign.id,campaign_run_id:runId,community_id:community?.id||null,tracking_link_id:trackingLinkId,channel:campaign.channel,scheduled_at:new Date(next).toISOString(),status:'scheduled',copy_snapshot:campaign.copy_text,media_url:campaign.image_url||campaign.video_url,destination_url:trackingCode?CLICK_URL+trackingCode:campaign.destination_url,execution_note:community?'JOIN_APPROVED:'+new Date(next).toISOString()+'|Participação confirmada pelo operador; tarefa liberada no intervalo mínimo de 5 minutos.':null});
         taskIndex++;next+=interval;
         if(pauseEvery>0&&pauseMs>0&&taskIndex%pauseEvery===0&&taskIndex<totalPlanned)next+=pauseMs;
       }
