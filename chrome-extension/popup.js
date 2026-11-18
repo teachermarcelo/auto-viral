@@ -43,7 +43,11 @@ async function render() {
     status(message, last.status === "success" ? "success" : last.status === "error" ? "error" : "");
   } else status("Entre no AutoViral em outra aba para autorizar a sincronização.");
   $("#items").innerHTML = groups.length
-    ? groups.slice(-20).reverse().map(group => '<article class="group"><div class="group-icon">f</div><div class="group-info"><b>' + safe(group.name) + '</b><small>' + safe(group.url) + '</small></div><span class="tag ' + (sent.has(group.url) ? "done" : "new") + '">' + (sent.has(group.url) ? "ENVIADO" : "NOVO") + '</span></article>').join("")
+    ? groups.slice(-30).reverse().map(group => {
+      const membership = group.membership_status || "mapped";
+      const labels = {mapped:"Mapeado",not_requested:"Não solicitado",request_pending:"Pedido pendente",joined:"Aceito",rejected:"Recusado"};
+      return '<article class="group" data-url="' + safe(group.url) + '"><div class="group-icon">f</div><div class="group-info"><b>' + safe(group.name) + '</b><small>' + safe(group.url) + '</small><span class="tag ' + (membership==="joined"?"done":membership==="request_pending"?"new":"") + '">' + labels[membership] + '</span><div class="group-actions"><button data-action="open">Abrir grupo</button><select data-action="status" aria-label="Estado de participação"><option value="mapped" '+(membership==="mapped"?"selected":"")+'>Mapeado</option><option value="not_requested" '+(membership==="not_requested"?"selected":"")+'>Não solicitado</option><option value="request_pending" '+(membership==="request_pending"?"selected":"")+'>Solicitação enviada / pendente</option><option value="joined" '+(membership==="joined"?"selected":"")+'>Aceito — confirmado</option><option value="rejected" '+(membership==="rejected"?"selected":"")+'>Recusado</option></select></div></div></article>';
+    }).join("")
     : '<p class="empty">Abra uma busca de grupos públicos no Facebook e role a página.</p>';
 }
 $("#pause").addEventListener("click", async () => {
@@ -94,3 +98,25 @@ $("#clear").addEventListener("click", async () => {
   await render();
   chrome.storage.onChanged.addListener((changes, area) => { if (area === "local" || area === "session") void render(); });
 })();
+
+$("#items").addEventListener("click", async event => {
+  const button = event.target.closest('button[data-action="open"]');
+  if (!button) return;
+  const url = button.closest(".group")?.dataset.url;
+  if (url) await chrome.tabs.create({url,active:true});
+});
+$("#items").addEventListener("change", async event => {
+  const select = event.target.closest('select[data-action="status"]');
+  if (!select) return;
+  const card = select.closest(".group"), url = card?.dataset.url, statusValue = select.value;
+  select.disabled = true;
+  try {
+    const result = await chrome.runtime.sendMessage({type:"AUTOVIRAL_SET_MEMBERSHIP",url,status:statusValue});
+    if (!result?.ok) throw Error(result?.error || "Falha ao atualizar.");
+    const state = await getState();
+    const updated = (state[GROUPS]||[]).map(group => group.url===url ? {...group,membership_status:statusValue} : group);
+    await chrome.storage.local.set({[GROUPS]:updated});
+    status("Estado atualizado no Supabase. Confirme que a ação ocorreu no Facebook.", "success");
+  } catch(error) { status(String(error?.message || error), "error"); }
+  finally { select.disabled = false; }
+});
