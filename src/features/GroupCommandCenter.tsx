@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Bell, CheckCircle2, Clock3, Edit3, ExternalLink, Layers3, Plus, RefreshCw, Search, Send, Trash2, Users, XCircle } from 'lucide-react';
+import { Bell, Edit3, ExternalLink, Layers3, RefreshCw, Search, Send, Trash2, Users, XCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 type PostLog = {id:string;community_id:string|null;status:string;scheduled_at:string;published_at:string|null;execution_note:string|null};
