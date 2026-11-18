@@ -10,7 +10,7 @@ import { CampaignsPage, AudiencesPage, PostsPage, CRMPage, OpportunitiesPage, An
 import { GroupCommandCenter } from './features/GroupCommandCenter';
 import { GrowthToolsPage } from './features/GrowthToolsPage';
 
-type Section = 'Visão geral' | 'Produtos' | 'Campanhas' | 'Grupos e oportunidades' | 'Inteligência de mercado' | 'Radar de audiência' | 'Central de tráfego' | 'Estúdio criativo' | 'CRM e vendas' | 'Funis e páginas' | 'Automações' | 'Analytics' | 'Integrações' | 'Públicos' | 'Importar' | 'Oportunidades' | 'Comentador' | 'YouTube' | 'Pinterest' | 'Email marketing' | 'WhatsApp X1' | 'Robô por cidades' | 'Relatórios IA' | 'Posts' | 'Gerador de link' | 'Tutorial';
+type Section = 'Visão geral' | 'Produtos' | 'Campanhas' | 'Grupos e oportunidades' | 'Grupos mapeados' | 'Inteligência de mercado' | 'Radar de audiência' | 'Central de tráfego' | 'Estúdio criativo' | 'CRM e vendas' | 'Funis e páginas' | 'Automações' | 'Analytics' | 'Integrações' | 'Públicos' | 'Importar' | 'Oportunidades' | 'Comentador' | 'YouTube' | 'Pinterest' | 'Email marketing' | 'WhatsApp X1' | 'Robô por cidades' | 'Relatórios IA' | 'Posts' | 'Gerador de link' | 'Tutorial';
 type Product = {
   id: string;
   name: string;
@@ -56,6 +56,7 @@ const sections: { label: Section; icon: typeof LayoutDashboard; group: string }[
   { label: 'Públicos', icon: Users, group: 'ESTRATÉGIA' },
   { label: 'Importar', icon: UploadCloud, group: 'ESTRATÉGIA' },
   { label: 'Grupos e oportunidades', icon: Users, group: 'ESTRATÉGIA' },
+  { label: 'Grupos mapeados', icon: Users, group: 'ESTRATÉGIA' },
   { label: 'Oportunidades', icon: Target, group: 'ESTRATÉGIA' },
   { label: 'Inteligência de mercado', icon: BrainCircuit, group: 'ESTRATÉGIA' },
   { label: 'Radar de audiência', icon: Compass, group: 'ESTRATÉGIA' },
@@ -318,7 +319,7 @@ function App() {
       <main className="main-area">
         <header className="topbar"><div className="topbar-left"><button className="icon-button menu-toggle" onClick={() => setMobileOpen(true)}><Menu /></button><div className="breadcrumb">AutoViral AI <span>/</span> <strong>{active}</strong></div></div><div className="topbar-actions"><button className="icon-button" title="Alternar tema claro/escuro" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? <Sun size={17}/> : <Moon size={17}/>}</button><div className="search-box"><Search size={16} /><input placeholder="Buscar recursos..." /><kbd>⌘ K</kbd></div><button className="icon-button notification-button"><Bell size={18} /><i /></button><div className="top-avatar">M</div></div></header>
         <div className="page-content">
-          {active === 'Públicos' ? <AudiencesPage workspaceId={workspaceId} /> : active === 'Integrações' ? <IntegrationsPage workspaceId={workspaceId} /> : active === 'Analytics' ? <AnalyticsPage workspaceId={workspaceId} /> : active === 'Posts' ? <PostsPage workspaceId={workspaceId} /> : active === 'CRM e vendas' ? <CRMPage workspaceId={workspaceId} /> : active === 'Oportunidades' ? <OpportunitiesPage workspaceId={workspaceId} /> : ['Estúdio criativo','Inteligência de mercado','Radar de audiência','Central de tráfego','Automações','Funis e páginas','Comentador','YouTube','Pinterest','Email marketing','WhatsApp X1','Robô por cidades','Relatórios IA','Importar'].includes(active) ? <GrowthToolsPage active={active} workspaceId={workspaceId} /> : active === 'Gerador de link' ? <CampaignsPage workspaceId={workspaceId} /> : active !== 'Visão geral' && active !== 'Produtos' && active !== 'Campanhas' && active !== 'Grupos e oportunidades' ? (
+          {active === 'Públicos' ? <AudiencesPage workspaceId={workspaceId} /> : active === 'Integrações' ? <IntegrationsPage workspaceId={workspaceId} /> : active === 'Analytics' ? <AnalyticsPage workspaceId={workspaceId} /> : active === 'Posts' ? <PostsPage workspaceId={workspaceId} /> : active === 'CRM e vendas' ? <CRMPage workspaceId={workspaceId} /> : active === 'Oportunidades' ? <OpportunitiesPage workspaceId={workspaceId} /> : ['Estúdio criativo','Inteligência de mercado','Radar de audiência','Central de tráfego','Automações','Funis e páginas','Comentador','YouTube','Pinterest','Email marketing','WhatsApp X1','Robô por cidades','Relatórios IA','Importar'].includes(active) ? <GrowthToolsPage active={active} workspaceId={workspaceId} /> : active === 'Gerador de link' ? <CampaignsPage workspaceId={workspaceId} /> : active !== 'Visão geral' && active !== 'Produtos' && active !== 'Campanhas' && active !== 'Grupos e oportunidades' && active !== 'Grupos mapeados' ? (
             <WorkspaceSection active={active} onNavigate={setActive} />
           ) : active === 'Produtos' ? (
             <ProductsPage
@@ -328,7 +329,7 @@ function App() {
               onChange={setProductForm} onSave={saveProduct} onClose={() => setFormOpen(false)}
               onRefresh={() => void loadProducts()}
             />
-          ) : active === 'Campanhas' ? <CampaignsPage workspaceId={workspaceId} /> : active === 'Grupos e oportunidades' ? <GroupCommandCenter workspaceId={workspaceId} /> : <>
+          ) : active === 'Campanhas' ? <CampaignsPage workspaceId={workspaceId} /> : (active === 'Grupos e oportunidades' || active === 'Grupos mapeados') ? <GroupCommandCenter workspaceId={workspaceId} initialTab={active === 'Grupos mapeados' ? 'recent' : 'all'} /> : <>
             <section className="welcome-row"><div><div className="eyebrow"><span className="live-dot" /> WORKSPACE EM CONFIGURAÇÃO</div><h1>{active === 'Visão geral' ? 'Seu crescimento começa aqui.' : active}</h1><p>{active === 'Visão geral' ? 'Uma visão unificada da sua operação de tráfego, audiência e vendas.' : 'Organize sua operação e prepare o próximo passo do crescimento orgânico.'}</p></div><button className="primary-button" onClick={() => setActive('Produtos')}><Plus size={17} /> Novo projeto</button></section>
             <section className="setup-banner"><div className="banner-icon"><Sparkles size={21} /></div><div className="banner-copy"><strong>Bem-vindo ao AutoViral AI</strong><span>Seu ambiente visual está pronto. Conecte as fontes de dados para ativar métricas reais e recursos operacionais.</span></div><span className="setup-status">CONFIGURAÇÃO INICIAL</span></section>
             <section className="metric-grid">{metrics.map((m) => { const Icon = m.icon; return <article className="metric-card" key={m.label}><div className="metric-head"><span>{m.label}</span><span className={`metric-icon ${m.tone}`}><Icon size={18} /></span></div><strong className="metric-value">{m.value}</strong><div className="metric-foot"><span className="muted-dot" />{m.change}</div></article>; })}</section>
