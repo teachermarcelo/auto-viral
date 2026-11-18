@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 import { CampaignsPage, CommunitiesPage, AudiencesPage, PostsPage, CRMPage, OpportunitiesPage, AnalyticsPage, IntegrationsPage } from './features/OperationalPages';
+import { GroupCommandCenter } from './features/GroupCommandCenter';
 import { GrowthToolsPage } from './features/GrowthToolsPage';
 
 type Section = 'Visão geral' | 'Produtos' | 'Campanhas' | 'Grupos e oportunidades' | 'Inteligência de mercado' | 'Radar de audiência' | 'Central de tráfego' | 'Estúdio criativo' | 'CRM e vendas' | 'Funis e páginas' | 'Automações' | 'Analytics' | 'Integrações' | 'Públicos' | 'Importar' | 'Oportunidades' | 'Comentador' | 'YouTube' | 'Pinterest' | 'Email marketing' | 'WhatsApp X1' | 'Robô por cidades' | 'Relatórios IA' | 'Posts' | 'Gerador de link' | 'Tutorial';
@@ -327,7 +328,7 @@ function App() {
               onChange={setProductForm} onSave={saveProduct} onClose={() => setFormOpen(false)}
               onRefresh={() => void loadProducts()}
             />
-          ) : active === 'Campanhas' ? <CampaignsPage workspaceId={workspaceId} /> : active === 'Grupos e oportunidades' ? <CommunitiesPage workspaceId={workspaceId} /> : <>
+          ) : active === 'Campanhas' ? <CampaignsPage workspaceId={workspaceId} /> : active === 'Grupos e oportunidades' ? <GroupCommandCenter workspaceId={workspaceId} /> : <>
             <section className="welcome-row"><div><div className="eyebrow"><span className="live-dot" /> WORKSPACE EM CONFIGURAÇÃO</div><h1>{active === 'Visão geral' ? 'Seu crescimento começa aqui.' : active}</h1><p>{active === 'Visão geral' ? 'Uma visão unificada da sua operação de tráfego, audiência e vendas.' : 'Organize sua operação e prepare o próximo passo do crescimento orgânico.'}</p></div><button className="primary-button" onClick={() => setActive('Produtos')}><Plus size={17} /> Novo projeto</button></section>
             <section className="setup-banner"><div className="banner-icon"><Sparkles size={21} /></div><div className="banner-copy"><strong>Bem-vindo ao AutoViral AI</strong><span>Seu ambiente visual está pronto. Conecte as fontes de dados para ativar métricas reais e recursos operacionais.</span></div><span className="setup-status">CONFIGURAÇÃO INICIAL</span></section>
             <section className="metric-grid">{metrics.map((m) => { const Icon = m.icon; return <article className="metric-card" key={m.label}><div className="metric-head"><span>{m.label}</span><span className={`metric-icon ${m.tone}`}><Icon size={18} /></span></div><strong className="metric-value">{m.value}</strong><div className="metric-foot"><span className="muted-dot" />{m.change}</div></article>; })}</section>
