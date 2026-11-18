@@ -181,27 +181,6 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
     if(error)setMessage('Não foi possível excluir: '+error.message);else{setMessage('Campanha excluída; registros históricos preservados.');if(editingCampaignId===c.id)resetForm();await load();}
   }
   async function setCampaignStatus(c:Campaign,status:string){if(!supabase||!workspaceId)return;const {error}=await supabase.from('av_campaigns').update({status,paused_until:status==='paused'?(c.paused_until||new Date(Date.now()+30*60000).toISOString()):null}).eq('id',c.id).eq('workspace_id',workspaceId);if(error)setMessage(error.message);else await load();}
-  async function markAwaitingAdmin(post:ScheduledPost){if(!supabase||!workspaceId)return;const {error}=await supabase.from('av_campaign_posts').update({status:'awaiting_admin',execution_note:'Aguardando autorização do administrador do grupo.'}).eq('id',post.id).eq('workspace_id',workspaceId);if(error)setMessage(error.message);else await load();}
-  async function requestGroupMembership(post:ScheduledPost,group:CommunityOption|null){
-    if(!supabase||!workspaceId||!group?.url){setMessage('Esta tarefa não tem um grupo vinculado.');return;}
-    const opened=window.open(group.url,'_blank');
-    if(!opened){setMessage('O navegador bloqueou a abertura do grupo. Permita pop-ups para o AutoViral e tente novamente.');return;}
-    opened.opener=null;
-    const note='JOIN_REQUESTED:'+new Date().toISOString()+'|Grupo aberto para solicitação. Confirme manualmente o envio no Facebook.';
-    const {error}=await supabase.from('av_campaign_posts').update({execution_note:note}).eq('id',post.id).eq('workspace_id',workspaceId);
-    if(error){setMessage('Grupo aberto, mas não foi possível salvar a etapa: '+error.message);return;}
-    setMessage('Grupo aberto. Solicite a entrada no próprio Facebook; depois que o administrador aceitar, volte aqui e confirme a aprovação.');
-    await load();
-  }
-  async function confirmGroupMembership(post:ScheduledPost){
-    if(!supabase||!workspaceId)return;
-    const readyAt=new Date(Date.now()+210000).toISOString();
-    const note='JOIN_APPROVED:'+readyAt+'|Aprovação confirmada pelo operador. A postagem ficará liberada 3 minutos e 30 segundos após esta confirmação.';
-    const {error}=await supabase.from('av_campaign_posts').update({scheduled_at:readyAt,execution_note:note}).eq('id',post.id).eq('workspace_id',workspaceId);
-    if(error){setMessage('Não foi possível iniciar o intervalo: '+error.message);return;}
-    setMessage('Aprovação registrada. A postagem ficará disponível em 3 minutos e 30 segundos.');
-    await load();
-  }
   async function openGroupForPost(post:ScheduledPost,group:CommunityOption|null){
     if(!group?.url){setMessage('Esta tarefa não tem um grupo vinculado.');return;}
     const requestId=crypto.randomUUID();
