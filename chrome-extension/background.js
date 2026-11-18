@@ -29,3 +29,32 @@ chrome.storage.onChanged.addListener((changes,area)=>{if((area==="local"&&change
 chrome.runtime.onInstalled.addListener(()=>{chrome.alarms.create("autoviral-sync",{periodInMinutes:1});});
 chrome.alarms.onAlarm.addListener(a=>{if(a.name==="autoviral-sync")void sync();});
 void sync();
+
+// Atualiza o ciclo de participação somente após confirmação do operador.
+async function setMembershipStatus(groupUrl, membershipStatus) {
+  const allowed = ["mapped","not_requested","request_pending","joined","rejected"];
+  if (!allowed.includes(membershipStatus)) throw Error("Estado de participação inválido.");
+  const session = await validSession((await state()).autoViralAuthSession);
+  if (!session) throw Error("Entre no AutoViral para sincronizar os estados.");
+  const members = await request("/rest/v1/av_workspace_members?select=workspace_id&order=created_at.asc&limit=1", {}, session.access_token);
+  const workspaceId = members?.[0]?.workspace_id;
+  if (!workspaceId) throw Error("Workspace não encontrado.");
+  const normalized = norm(groupUrl);
+  const filter = "/rest/v1/av_communities?workspace_id=eq."+encodeURIComponent(workspaceId)+"&normalized_url=eq."+encodeURIComponent(normalized);
+  const patch = {membership_status:membershipStatus,membership_checked_at:new Date().toISOString()};
+  if (membershipStatus === "request_pending") patch.request_sent_at = new Date().toISOString();
+  const result = await fetch(BASE+filter,{method:"PATCH",headers:{apikey:KEY,Authorization:"Bearer "+session.access_token,"Content-Type":"application/json",Prefer:"return=representation"},body:JSON.stringify(patch)});
+  const body = await result.text();
+  if (!result.ok) throw Error(body || "Não foi possível atualizar o estado do grupo.");
+  return {ok:true,status:membershipStatus};
+}
+chrome.runtime.onMessage.addListener((message,sender,sendResponse)=>{
+  if(message?.type!=="AUTOVIRAL_SET_MEMBERSHIP") return;
+  (async()=>{
+    const url = String(message.url||"");
+    const parsed = new URL(url);
+    if(parsed.protocol!=="https:" || !["facebook.com","www.facebook.com"].includes(parsed.hostname) || !/^\/groups\/[A-Za-z0-9._-]+\/?$/.test(parsed.pathname)) throw Error("URL de grupo inválida.");
+    return await setMembershipStatus(url,String(message.status||""));
+  })().then(sendResponse).catch(error=>sendResponse({ok:false,error:String(error?.message||error)}));
+  return true;
+});
