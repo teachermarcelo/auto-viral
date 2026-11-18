@@ -6,7 +6,7 @@ import {
   Search, Settings2, ShieldCheck, Sparkles, Target, Users, WandSparkles, X, Pencil, Trash2, RefreshCw,
 } from 'lucide-react';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
-import { CampaignsPage, CommunitiesPage, AudiencesPage, PostsPage, CRMPage, OpportunitiesPage, AnalyticsPage, IntegrationsPage } from './features/OperationalPages';
+import { CampaignsPage, AudiencesPage, PostsPage, CRMPage, OpportunitiesPage, AnalyticsPage, IntegrationsPage } from './features/OperationalPages';
 import { GroupCommandCenter } from './features/GroupCommandCenter';
 import { GrowthToolsPage } from './features/GrowthToolsPage';
 
