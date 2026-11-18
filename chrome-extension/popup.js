@@ -24,6 +24,8 @@ async function render() {
   $("#pending").textContent = pending.length;
   $("#sent").textContent = groups.length - pending.length;
   $("#visible-count").textContent = groups.length;
+  $("#membership-pending").textContent = groups.filter(group => group.membership_status === "request_pending").length;
+  $("#membership-joined").textContent = groups.filter(group => group.membership_status === "joined").length;
   $("#live").classList.toggle("paused", !!state.autoViralMapperPaused);
   $("#live").innerHTML = state.autoViralMapperPaused ? "<i></i> PAUSADO" : "<i></i> ATIVO";
   $("#pause").textContent = state.autoViralMapperPaused ? "Retomar mapeamento" : "Pausar mapeamento";
