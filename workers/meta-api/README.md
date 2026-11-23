@@ -1,37 +1,58 @@
 # AutoViral Meta API Worker
 
-Secure server-side OAuth and Meta Marketing API gateway for the Firebase-first AutoViral app.
+Backend seguro de OAuth e Meta Marketing API para o AutoViral AI, usando Firebase Authentication e Cloudflare Workers.
 
-## Required Cloudflare configuration
+## Configuração do Worker no Cloudflare
 
-Create a KV namespace and replace `REPLACE_WITH_KV_NAMESPACE_ID` in `wrangler.toml`. Configure these as Worker secrets (never as plaintext vars):
+Ao conectar o repositório `teachermarcelo/auto-viral` ao Worker:
 
-- `META_APP_ID`: App ID for the existing VIRAL SALES AI Meta app.
-- `META_APP_SECRET`: App Secret for that same Meta app.
-- `TOKEN_ENCRYPTION_KEY`: 32-byte random key encoded as 64 hexadecimal characters.
-- `OAUTH_REDIRECT_URI`: exact HTTPS callback URL, e.g. `https://autoviral-meta-api.<your-subdomain>.workers.dev/meta/oauth/callback`.
+- **Nome:** `autoviral-meta-api`
+- **Diretório raiz / Root directory:** `workers/meta-api`
+- **Comando da build:** deixar vazio
+- **Comando de implantação:** `npx wrangler deploy`
+- **Comando de preview:** `npx wrangler dev` (opcional)
+- **Token de API:** token de deploy da Cloudflare com permissão de editar Workers e acessar KV
+- **Namespace KV:** o binding `META_CONNECTIONS` já está declarado no `wrangler.toml`; ele usa o namespace criado para `AUTOVIRAL_META_CONNECTIONS`.
 
-The `APP_ORIGIN` and `FIREBASE_PROJECT_ID` vars are non-secret. Confirm the deployed Worker URL and register its exact callback URL in the Meta app's Valid OAuth Redirect URIs. Do not remove the legacy Supabase callback URLs used by the other platform.
+Não use `data-core/api` como diretório raiz. Esse diretório contém outro serviço e não é o backend OAuth da Meta.
+
+## Variáveis e secrets
+
+O `wrangler.toml` já declara as variáveis públicas `APP_ORIGIN`, `FIREBASE_PROJECT_ID`, `META_GRAPH_VERSION`, `META_APP_ID` e `OAUTH_REDIRECT_URI`.
+
+Configure no painel do Worker, em **Settings → Variables and Secrets**, como **Secrets** (nunca como variáveis públicas):
+
+- `META_APP_SECRET`: App Secret do aplicativo existente VIRAL SALES AI.
+- `TOKEN_ENCRYPTION_KEY`: chave aleatória de 32 bytes em 64 caracteres hexadecimais.
+
+O App ID não é segredo. Nunca coloque o App Secret, tokens Meta ou a chave de criptografia no GitHub, no frontend ou em mensagens.
+
+## URLs
+
+- Worker: `https://autoviral-meta-api.marcellospropaganda.workers.dev`
+- Health check: `https://autoviral-meta-api.marcellospropaganda.workers.dev/health`
+- Callback OAuth: `https://autoviral-meta-api.marcellospropaganda.workers.dev/meta/oauth/callback`
+
+Cadastre exatamente a URL de callback acima em **Meta for Developers → VIRAL SALES AI → Login do Facebook → Configurações → URIs de redirecionamento do OAuth válidos**. Preserve as URLs antigas usadas pela outra plataforma.
 
 ## Endpoints
 
-- `GET /health`: non-sensitive readiness/configuration check.
-- `POST /meta/oauth/start`: requires Firebase ID token; returns Meta authorization URL.
-- `GET /meta/oauth/callback`: validates one-time state, exchanges code, encrypts and stores the Meta token in KV.
-- `POST /meta/accounts`: lists ad accounts for the authenticated Firebase user.
-- `POST /meta/campaigns`: lists campaigns for a verified ad account.
-- `POST /meta/campaigns/action`: pauses or activates a campaign only after verifying the ad account and campaign association.
+- `GET /health`: verifica se o Worker está configurado, sem expor segredos.
+- `POST /meta/oauth/start`: exige Firebase ID token e inicia OAuth.
+- `GET /meta/oauth/callback`: valida state de uso único, troca o code e guarda token criptografado no KV.
+- `POST /meta/accounts`: lista contas de anúncios autorizadas.
+- `POST /meta/campaigns`: lista campanhas da conta verificada.
+- `POST /meta/campaigns/action`: pausa ou ativa uma campanha após validar sua associação à conta.
 
-## Security properties
+## Segurança e limites
 
-- Firebase ID tokens are verified against Google's Secure Token JWKS, including issuer, audience, expiry and subject.
-- OAuth state is random, one-time and expires after 10 minutes.
-- Meta tokens are AES-GCM encrypted before storage in KV.
-- Browser requests are restricted to the configured app origin.
-- App Secret and Meta access tokens never reach the browser.
-- Account IDs are checked against the user's authorized Meta ad accounts before campaign reads/writes.
-- No campaign deletion endpoint is provided.
+- Firebase ID tokens são verificados por assinatura e claims.
+- OAuth state é aleatório, de uso único e expira em 10 minutos.
+- Tokens Meta são criptografados com AES-GCM antes de serem armazenados no KV.
+- O App Secret e os tokens Meta nunca são enviados ao navegador.
+- As operações de campanha são limitadas a contas autorizadas e não há endpoint de exclusão.
+- O CORS aceita apenas a origem do GitHub Pages configurada.
 
-## Important
+## Aprovação Meta
 
-This Worker does not make the Meta app approved for Advanced Access. The Meta app owner must configure Login for Business/Marketing API, exact redirect URI, permissions, privacy policy and App Review as required. Test first with app-role users and a test ad account.
+Publicar o Worker não aprova o aplicativo Meta. A Meta ainda pode exigir verificação empresarial, App Review e Advanced Access para permissões como `ads_read`, `ads_management` e `business_management`. Enquanto o aplicativo estiver em modo de desenvolvimento, somente pessoas com função no app podem testar conforme as regras da Meta. Comece com uma conta de anúncios de teste.
