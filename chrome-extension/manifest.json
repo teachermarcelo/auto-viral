@@ -12,7 +12,7 @@
   "host_permissions": [
     "https://www.facebook.com/*",
     "https://facebook.com/*",
-    "https://nuyzvpkvawixidotuuio.supabase.co/*",
+    "https://firestore.googleapis.com/*",
     "https://teachermarcelo.github.io/*"
   ],
   "content_scripts": [
