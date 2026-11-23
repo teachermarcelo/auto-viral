@@ -1,0 +1,2 @@
+alter table public.av_campaign_posts drop constraint if exists av_campaign_posts_status_check;
+alter table public.av_campaign_posts add constraint av_campaign_posts_status_check check(status in ('scheduled','publishing','published','cancelled','failed'));

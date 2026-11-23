@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feat/phase-1-foundation
+      - feat/platform-migration-chrome-extension
   workflow_dispatch:
 
 permissions:
@@ -40,6 +41,9 @@ jobs:
           path: ./dist
 
   deploy:
+    # The github-pages environment is protected for the stable Pages branch.
+    # Feature branches still run the build, but must not attempt a production deploy.
+    if: github.ref == 'refs/heads/feat/phase-1-foundation' || github.ref == 'refs/heads/feat/platform-migration-chrome-extension'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
