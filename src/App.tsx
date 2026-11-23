@@ -84,8 +84,6 @@ const sections: { label: Section; icon: typeof LayoutDashboard; group: string }[
   { label: 'Tutorial', icon: BookOpen, group: 'FERRAMENTAS' },
   { label: 'Integrações', icon: Settings2, group: 'SISTEMA' },
 ];
-const DEMO_MODE = false;
-
 const metrics = [
   { label: 'Visitantes orgânicos', value: '—', change: 'Aguardando conexão', icon: Users, tone: 'cyan' },
   { label: 'Leads capturados', value: '—', change: 'Aguardando conexão', icon: Target, tone: 'purple' },
@@ -157,6 +155,7 @@ function App() {
       setWorkspaceId(null);
     } finally {
       setWorkspaceLoading(false);
+      setAuthReady(true);
     }
   }
 
