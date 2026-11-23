@@ -48,3 +48,8 @@ The compatibility adapter keeps the existing module query interface while module
 - Do not commit service-account JSON, Admin SDK private keys, OAuth client secrets, webhook secrets, or database connection strings.
 - Never weaken Firestore rules to public read/write.
 - Back up and reconcile data before any future migration; preserve source IDs and timestamps and keep a rollback window.
+
+
+## Known migration blocker — Chrome extension
+
+The current `chrome-extension/` implementation is still coupled to the legacy Supabase project: `background.js` calls Supabase Auth/REST endpoints and `platform-bridge.js` extracts the Supabase browser session. It is **not Firebase-compatible yet**, even though the web app's primary data path is Firebase. Keep the legacy Supabase project intact until the extension is migrated and tested. Required follow-up: replace session bridging with Firebase Authentication, write community records to `workspaces/{uid}/communities` under the existing Firestore rules, and verify duplicate handling plus cross-workspace isolation. Do not claim extension-to-Firebase synchronization is operational before those tests pass.
