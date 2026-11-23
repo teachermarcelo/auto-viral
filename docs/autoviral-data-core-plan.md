@@ -1,6 +1,6 @@
 # AutoViral Data Core — plano de implementação
 
-Status: Fase 1 iniciada — Firebase Authentication, workspace Firestore e CRUD do Product Center conectados; migração dos demais módulos pendente.
+Status: Fase 1 em validação — Firebase Authentication, workspace Firestore, Product Center e camada de compatibilidade CRUD dos módulos conectados. Endpoints externos e execução de integrações ainda pendentes.
 Branch: `feat/autoviral-data-core`
 Base: `feat/platform-migration-chrome-extension`
 
@@ -14,8 +14,8 @@ Construir o AutoViral Data Core sob controle do proprietário, priorizando custo
 - Hospedagem atual do frontend: GitHub Pages; é estática e não executa Node/PostgreSQL no servidor.
 - Cliente de dados: `@supabase/supabase-js` em `src/lib/supabase.ts`.
 - Configuração do frontend: `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`.
-- A aplicação importa diretamente o cliente Supabase em `App.tsx`, `OperationalPages.tsx`, `GroupCommandCenter.tsx`, `GrowthToolsPage.tsx` e `DistributionAgentPage.tsx`.
-- Há chamadas diretas a tabelas, RPC, Auth, Storage e Edge Functions; portanto, trocar somente as variáveis de ambiente não é uma migração.
+- Os módulos operacionais ainda importam o caminho legado `src/lib/supabase.ts`, mas ele agora exporta `src/lib/firestoreCompat.ts`, um adaptador temporário de CRUD para coleções Firestore por workspace.
+- Chamadas de tabelas CRUD são encaminhadas ao Firestore; RPC, Edge Functions, OAuth, publicação, IA e uploads ainda retornam indisponibilidade explícita até existirem endpoints/armazenamento seguros no Data Core.
 - As migrations existentes definem entidades `av_*` para perfis, workspaces, membros, produtos, campanhas, integrações, eventos de atividade, posts, comunidades, oportunidades, links/eventos de rastreamento, leads, vendas, segredos de webhook, assets criativos, alvos por cidade, relatórios, conteúdo social, campanhas de e-mail, públicos, execuções e configurações/eventos do agente de distribuição.
 - Existem Edge Functions Supabase para Meta OAuth/Ads, publicação de Stories, agendamento, Kiwify, captação de leads, cliques e ferramentas Gemini. Cada uma precisa de substituta API/Worker e testes próprios.
 - A branch padrão `main` contém apenas README; o código ativo e o workflow do Pages estão em `feat/platform-migration-chrome-extension`. O trabalho novo é isolado nesta branch.
