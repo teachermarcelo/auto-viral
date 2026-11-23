@@ -143,7 +143,8 @@ async function handle(request: Request, env: Env): Promise<Response> {
     const accessToken = longResponse.ok && longToken.access_token ? longToken.access_token : shortToken.access_token;
     const profile = await graph(env, "me?fields=id,name", accessToken);
     const encrypted = await encryptToken(accessToken, env);
-    const expiresIn = Number(longToken.expires_in || shortToken.expires_in || 0);\n    const record: StoredConnection = { ...encrypted, connectedAt: new Date().toISOString(), expiresAt: expiresIn > 0 ? new Date(Date.now() + expiresIn * 1000).toISOString() : null, metaUserId: profile.id, metaUserName: profile.name || null, scopes: String(longToken.granted_scopes || shortToken.granted_scopes || "").split(",").filter(Boolean) };
+    const expiresIn = Number(longToken.expires_in || shortToken.expires_in || 0);
+    const record: StoredConnection = { ...encrypted, connectedAt: new Date().toISOString(), expiresAt: expiresIn > 0 ? new Date(Date.now() + expiresIn * 1000).toISOString() : null, metaUserId: profile.id, metaUserName: profile.name || null, scopes: String(longToken.granted_scopes || shortToken.granted_scopes || "").split(",").filter(Boolean) };
     await env.META_CONNECTIONS.put(`connection:${stateRecord.uid}`, JSON.stringify(record));
     return Response.redirect(`${env.APP_ORIGIN}/?meta_connection=success`, 302);
   }
