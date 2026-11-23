@@ -10,7 +10,7 @@ interface Env {
 }
 
 type FirebaseIdentity = { uid: string; email?: string };
-type StoredConnection = { ciphertext: string; iv: string; connectedAt: string; metaUserId: string; metaUserName: string | null; scopes: string[] };
+type StoredConnection = { ciphertext: string; iv: string; connectedAt: string; expiresAt: string | null; metaUserId: string; metaUserName: string | null; scopes: string[] };
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 const STATE_TTL_SECONDS = 600;
@@ -85,10 +85,10 @@ async function decryptToken(record: StoredConnection, env: Env) {
 async function graph(env: Env, path: string, accessToken: string, init: RequestInit = {}) {
   const url = new URL(`https://graph.facebook.com/${env.META_GRAPH_VERSION}/${path.replace(/^\//, "")}`);
   url.searchParams.set("access_token", accessToken);
-  const controller = new AbortController();
+  const proofKey = await crypto.subtle.importKey("raw", encoder.encode(env.META_APP_SECRET), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);\n  const proof = new Uint8Array(await crypto.subtle.sign("HMAC", proofKey, encoder.encode(accessToken)));\n  url.searchParams.set("appsecret_proof", Array.from(proof, byte => byte.toString(16).padStart(2, "0")).join(""));\n  const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), GRAPH_TIMEOUT_MS);
   try {
-    const response = await fetch(url, { ...init, signal: controller.signal, headers: { "content-type": "application/json", ...(init.headers || {}) } });
+    const response = await fetch(url, { ...init, signal: controller.signal, headers: { "content-type": init.body instanceof URLSearchParams ? "application/x-www-form-urlencoded" : "application/json", ...(init.headers || {}) } });
     const payload = await response.json() as any;
     if (!response.ok || payload.error) throw new Error(payload.error?.message || "meta_api_request_failed");
     return payload;
@@ -140,7 +140,7 @@ async function handle(request: Request, env: Env): Promise<Response> {
     const accessToken = longResponse.ok && longToken.access_token ? longToken.access_token : shortToken.access_token;
     const profile = await graph(env, "me?fields=id,name", accessToken);
     const encrypted = await encryptToken(accessToken, env);
-    const record: StoredConnection = { ...encrypted, connectedAt: new Date().toISOString(), metaUserId: profile.id, metaUserName: profile.name || null, scopes: String(longToken.granted_scopes || shortToken.granted_scopes || "").split(",").filter(Boolean) };
+    const expiresIn = Number(longToken.expires_in || shortToken.expires_in || 0);\n    const record: StoredConnection = { ...encrypted, connectedAt: new Date().toISOString(), expiresAt: expiresIn > 0 ? new Date(Date.now() + expiresIn * 1000).toISOString() : null, metaUserId: profile.id, metaUserName: profile.name || null, scopes: String(longToken.granted_scopes || shortToken.granted_scopes || "").split(",").filter(Boolean) };
     await env.META_CONNECTIONS.put(`connection:${stateRecord.uid}`, JSON.stringify(record));
     return Response.redirect(`${env.APP_ORIGIN}/?meta_connection=success`, 302);
   }
@@ -179,7 +179,7 @@ async function handle(request: Request, env: Env): Promise<Response> {
     const ownedAccount = String(ownership.account_id || "");
     if (ownedAccount !== account.id.replace(/^act_/, "")) return json({ error: "campaign_account_mismatch" }, 403);
     const nextStatus = action === "pause" ? "PAUSED" : "ACTIVE";
-    await graph(env, campaignId, accessToken, { method: "POST", body: JSON.stringify({ status: nextStatus }) });
+    await graph(env, campaignId, accessToken, { method: "POST", body: new URLSearchParams({ status: nextStatus }) });
     const verified = await graph(env, `${campaignId}?fields=id,status,effective_status`, accessToken);
     await env.META_CONNECTIONS.put(`audit:${identity.uid}:${Date.now()}`, JSON.stringify({ uid: identity.uid, action, campaignId, adAccountId: account.id, status: verified.status, at: new Date().toISOString() }), { expirationTtl: 60 * 60 * 24 * 365 });
     return json({ verified: verified.status === nextStatus, verified_status: verified.status, campaign_id: campaignId });
