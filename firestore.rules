@@ -1,0 +1,47 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function workspaceExists(workspaceId) {
+      return exists(/databases/$(database)/documents/workspaces/$(workspaceId));
+    }
+
+    function isOwner(workspaceId) {
+      return signedIn()
+        && workspaceExists(workspaceId)
+        && get(/databases/$(database)/documents/workspaces/$(workspaceId)).data.ownerUid == request.auth.uid;
+    }
+
+    function isMember(workspaceId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/workspaces/$(workspaceId)/members/$(request.auth.uid));
+    }
+
+    match /workspaces/{workspaceId} {
+      allow create: if signedIn()
+        && request.resource.data.ownerUid == request.auth.uid;
+      allow read: if isOwner(workspaceId) || isMember(workspaceId);
+      allow update, delete: if isOwner(workspaceId);
+
+      match /members/{memberUid} {
+        allow read: if isOwner(workspaceId) || isMember(workspaceId);
+        allow create, update, delete: if isOwner(workspaceId);
+      }
+
+      // All operational records are workspace-scoped. Membership must be
+      // provisioned by the workspace owner; clients cannot self-enroll.
+      match /{collection}/{document=**} {
+        allow read, create, update, delete: if isOwner(workspaceId) || isMember(workspaceId);
+      }
+    }
+
+    // No public access to unscoped collections or unknown paths.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
