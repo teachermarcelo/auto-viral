@@ -51,3 +51,10 @@ O workflow do repositório verifica o build do frontend e empacota a extensão. 
 ## Execução assistida de tarefas
 
 Na fila de Campanhas do AutoViral, use **Abrir grupo e copiar postagem**. A plataforma envia a URL e o texto da tarefa à extensão instalada, que abre o grupo e mostra um painel local com ações de copiar texto e marcar revisão. A extensão não solicita entrada, não publica e não clica em controles do Facebook. O operador continua responsável por ler as regras, pedir participação e publicar quando permitido.
+
+
+## Compatibilidade com a migração Firebase
+
+**Atenção: esta versão da extensão ainda NÃO está integrada ao Firebase.** O arquivo `background.js` usa o endpoint REST do projeto Supabase legado e o `platform-bridge.js` procura a sessão de autenticação Supabase no navegador. Portanto, a sincronização de grupos descrita acima só funciona enquanto a aplicação publicada mantiver essa sessão Supabase disponível. Ela não deve ser apresentada como integração Firebase nem como funcionalidade validada no novo Data Core.
+
+Até a migração da extensão, mantenha o Supabase legado preservado e não remova suas credenciais/configuração do ambiente antigo. A próxima etapa técnica é trocar a autenticação compartilhada por Firebase Authentication e gravar em `workspaces/{uid}/communities` via Firestore com regras de workspace; depois validar captura, sincronização, duplicatas e isolamento com duas contas. Não instale/atualize esta extensão esperando sincronização Firebase.
