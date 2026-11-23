@@ -91,6 +91,20 @@ Deno.serve(async (req: Request) => {
       return reply({ status: "OK", ad_account: selectedAccount, campaigns: payload.data || [], source: "meta_marketing_api" });
     }
 
+    if (action === "get_insights") {
+      const datePreset = ["today","yesterday","last_7d","last_14d","last_30d","this_month","last_month"].includes(String(body.date_preset)) ? String(body.date_preset) : "last_7d";
+      const level = ["campaign","adset","ad"].includes(String(body.level)) ? String(body.level) : "ad";
+      const url = new URL(`${graph}/${accountPath}/insights`);
+      url.searchParams.set("fields", "campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name,impressions,reach,frequency,clicks,inline_link_clicks,spend,ctr,cpc,cpm,actions,date_start,date_stop");
+      url.searchParams.set("level", level);
+      url.searchParams.set("date_preset", datePreset);
+      url.searchParams.set("limit", "500");
+      const response = await fetch(url, { headers: { Authorization: "Bearer " + token } });
+      const payload = await response.json();
+      if (!response.ok) return reply({ error: "META_INSIGHTS_ERROR", message: payload?.error?.message || "Falha ao consultar Insights da Meta.", code: payload?.error?.code ?? null }, 502);
+      return reply({ status: "OK", ad_account: selectedAccount, level, date_preset: datePreset, insights: payload.data || [], paging: payload.paging || null, source: "meta_marketing_api" });
+    }
+
     if (!["pause", "activate", "delete"].includes(action)) return reply({ error: "INVALID_ACTION" }, 400);
     if (!campaignId || !/^\d+$/.test(campaignId)) return reply({ error: "INVALID_CAMPAIGN_ID" }, 400);
     if (!scopes.includes("ads_management")) {
