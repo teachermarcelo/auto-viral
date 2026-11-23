@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Link2, LogOut, Menu, Package, Plus, Sun, Moon, MessageSquare, Play, FileText, BookOpen, UploadCloud,
   Search, Settings2, ShieldCheck, Sparkles, Target, Users, WandSparkles, X, Pencil, Trash2, RefreshCw,
 } from 'lucide-react';
-import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { createUserWithEmailAndPassword, GoogleAuthProvider, onAuthStateChanged, signInWithEmailAndPassword, signInWithPopup, signOut } from 'firebase/auth';
 import { collection, deleteDoc, doc, getDoc, getDocs, orderBy, query, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { firebaseAuth, firestore } from './lib/firebase';
 import { workspaceCollectionPath, workspaceMemberPath, workspacePath } from './lib/firestorePaths';
@@ -291,6 +291,15 @@ function App() {
       setAuthMessage(messages[code] || (error instanceof Error ? error.message : 'Não foi possível autenticar.'));
     } finally { setLoading(false); }
   }
+  async function authenticateWithGoogle() {
+    setLoading(true); setAuthMessage('');
+    try {
+      await signInWithPopup(firebaseAuth, new GoogleAuthProvider());
+    } catch (error) {
+      const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : '';
+      setAuthMessage(code === 'auth/popup-closed-by-user' ? 'A janela de acesso foi fechada antes da conclusão.' : error instanceof Error ? error.message : 'Não foi possível entrar com Google.');
+    } finally { setLoading(false); }
+  }
   async function handleSignOut() { await signOut(firebaseAuth); }
 
   if (!authReady) return <div className="loading-screen"><div className="brand-mark"><Sparkles /></div><span>Preparando seu workspace…</span></div>;
@@ -305,6 +314,7 @@ function App() {
           <label>Senha<input type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} placeholder="Mínimo de 8 caracteres" /></label>
           {authMessage && <p className="auth-message">{authMessage}</p>}
           <button className="primary-button full" disabled={loading}>{loading ? 'Aguarde…' : authMode === 'login' ? 'Entrar' : 'Criar conta'}</button>
+          <button type="button" className="text-button" disabled={loading} onClick={() => void authenticateWithGoogle()}>Continuar com Google</button>
           <button type="button" className="text-button" onClick={() => { setAuthMode(authMode === 'login' ? 'signup' : 'login'); setAuthMessage(''); }}>{authMode === 'login' ? 'Ainda não tem conta? Criar acesso' : 'Já tem uma conta? Entrar'}</button>
         </form>
         <small className="auth-foot"><ShieldCheck size={14} /> Acesso protegido por Firebase Authentication</small>
