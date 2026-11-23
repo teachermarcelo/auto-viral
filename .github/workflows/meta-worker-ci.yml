@@ -12,7 +12,7 @@ on:
       - ".github/workflows/meta-worker-ci.yml"
 
 jobs:
-  typecheck:
+  validate:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -24,5 +24,9 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: workers/meta-api/package.json
-      - run: npm install
-      - run: npm run typecheck
+      - name: Install dependencies
+        run: npm install
+      - name: TypeScript validation
+        run: npm run typecheck
+      - name: Validate Cloudflare deployment configuration
+        run: npx wrangler deploy --dry-run
