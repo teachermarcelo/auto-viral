@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Link2, LogOut, Menu, Package, Plus, Sun, Moon, MessageSquare, Play, FileText, BookOpen, UploadCloud,
   Search, Settings2, ShieldCheck, Sparkles, Target, Users, WandSparkles, X, Pencil, Trash2, RefreshCw,
 } from 'lucide-react';
-import { createUserWithEmailAndPassword, GoogleAuthProvider, onAuthStateChanged, signInWithEmailAndPassword, signInWithPopup, signOut } from 'firebase/auth';
+import { createUserWithEmailAndPassword, GoogleAuthProvider, onAuthStateChanged, onIdTokenChanged, signInWithEmailAndPassword, signInWithPopup, signOut } from 'firebase/auth';
 import { collection, deleteDoc, doc, getDoc, getDocs, orderBy, query, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { firebaseAuth, firestore } from './lib/firebase';
 import { supabase } from './lib/supabase';
@@ -259,6 +259,15 @@ function App() {
       setProducts([]);
       setAuthReady(true);
     }
+  }), []);
+
+  useEffect(() => onIdTokenChanged(firebaseAuth, async user => {
+    if (!user) { window.postMessage({ source: 'AUTOVIRAL_WEB', type: 'FIREBASE_SIGNOUT' }, window.location.origin); return; }
+    try {
+      const idToken = await user.getIdToken();
+      const payload = JSON.parse(atob(idToken.split('.')[1]));
+      window.postMessage({ source: 'AUTOVIRAL_WEB', type: 'FIREBASE_AUTH_TOKEN', token: { idToken, uid: user.uid, email: user.email, exp: payload.exp } }, window.location.origin);
+    } catch (error) { console.warn('Não foi possível autorizar a extensão AutoViral:', error); }
   }), []);
 
   useEffect(() => { if (active === 'Produtos' && workspaceId) void loadProducts(workspaceId); }, [active, workspaceId]);
