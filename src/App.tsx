@@ -429,7 +429,7 @@ function ProductsPage(props: {
   onDelete: (product: Product) => void; onChange: (form: ProductForm) => void;
   onSave: (event: React.FormEvent<HTMLFormElement>) => void; onClose: () => void; onRefresh: () => void;
 }) {
-  const { products, loading, error, message, formOpen, form, saving, imageFile, onImageFileChange, onNew, onEdit, onDelete, onChange, onSave, onClose, onRefresh } = props;
+  const { products, loading, error, message, formOpen, form, saving, imageFile, onNew, onEdit, onDelete, onChange, onSave, onClose, onRefresh } = props;
   const currency = (value: number | null, code: string) => value == null ? 'Sem preço' : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: code }).format(value);
   const imagePreviewUrl = useMemo(() => imageFile ? URL.createObjectURL(imageFile) : null, [imageFile]);
   useEffect(() => () => { if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl); }, [imagePreviewUrl]);
