@@ -13,9 +13,10 @@ Never commit service-account JSON, Admin SDK private keys, or database secrets.
 ## Console steps required
 
 1. In Firebase Console, open **Authentication → Sign-in method** and enable **Email/Password**.
-2. Open **Firestore Database → Rules**.
-3. Publish the repository's `firestore.rules` file.
-4. In **Project settings → Your apps → AutoViral Web**, confirm the app ID matches the configuration in `src/lib/firebase.ts`.
+2. Open **Firestore Database → Rules** and publish the repository's `firestore.rules` file.
+3. Open **Storage → Rules** and publish the repository's `storage.rules` file. Storage may require enabling billing on newer Firebase projects; do not enable a paid plan without reviewing the quota and billing settings first.
+4. In **Project settings → Your apps → AutoViral Web**, confirm the app ID matches `src/lib/firebase.ts`.
+5. In the app, create an account or sign in. The first successful login provisions `workspaces/{uid}` and its owner membership automatically.
 
 ## Data layout
 
@@ -33,8 +34,10 @@ The new database uses workspace-scoped collections:
 - `workspaces/{workspaceId}/distributionTasks/{taskId}`
 - `workspaces/{workspaceId}/auditEvents/{eventId}`
 
+The first Firebase Authentication account owns a workspace whose document ID is the Firebase Auth UID. The initial release currently supports email/password login and signup.
+
 ## Migration safety
 
-This commit only adds the Firebase client SDK and security-rule foundation. It does not delete, overwrite, or migrate Supabase data, and it does not switch existing modules to Firestore. The current app still has Supabase-dependent modules and temporary demo mode. Migrate one module at a time after an export/backup and a record-count reconciliation.
+Firebase Authentication now controls app access, and workspace provisioning plus Product Center CRUD use Firestore. Product image uploads use Firebase Storage when the bucket is enabled and permitted by the project's plan. Supabase data is not deleted, overwritten, or migrated. Campaigns, communities, audiences, tracking, CRM, creative tools, integrations, and distribution still contain Supabase-backed operations and must be migrated module by module after a verified export/backup and record-count reconciliation.
 
 Do not weaken Firestore rules to `allow read, write: if true`. The rules in this repository deny access unless the caller is authenticated and belongs to the workspace.
