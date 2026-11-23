@@ -53,8 +53,8 @@ O workflow do repositório verifica o build do frontend e empacota a extensão. 
 Na fila de Campanhas do AutoViral, use **Abrir grupo e copiar postagem**. A plataforma envia a URL e o texto da tarefa à extensão instalada, que abre o grupo e mostra um painel local com ações de copiar texto e marcar revisão. A extensão não solicita entrada, não publica e não clica em controles do Facebook. O operador continua responsável por ler as regras, pedir participação e publicar quando permitido.
 
 
-## Compatibilidade com a migração Firebase
+## Compatibilidade com Firebase
 
-**Atenção: esta versão da extensão ainda NÃO está integrada ao Firebase.** O arquivo `background.js` usa o endpoint REST do projeto Supabase legado e o `platform-bridge.js` procura a sessão de autenticação Supabase no navegador. Portanto, a sincronização de grupos descrita acima só funciona enquanto a aplicação publicada mantiver essa sessão Supabase disponível. Ela não deve ser apresentada como integração Firebase nem como funcionalidade validada no novo Data Core.
+A extensão agora recebe o Firebase ID token da aplicação autenticada por meio de `platform-bridge.js`, mantém o token apenas em `chrome.storage.session` e grava os grupos em `workspaces/{uid}/communities` usando Firestore REST. O token é enviado pelo app após mudanças de autenticação e não é persistido como refresh token.
 
-Até a migração da extensão, mantenha o Supabase legado preservado e não remova suas credenciais/configuração do ambiente antigo. A próxima etapa técnica é trocar a autenticação compartilhada por Firebase Authentication e gravar em `workspaces/{uid}/communities` via Firestore com regras de workspace; depois validar captura, sincronização, duplicatas e isolamento com duas contas. Não instale/atualize esta extensão esperando sincronização Firebase.
+**Validação de runtime ainda pendente:** instalar a extensão atualizada no Chrome, autenticar no AutoViral, sincronizar um grupo público visível, confirmar deduplicação e testar isolamento com uma segunda conta. Preserve o Supabase legado enquanto esses testes e a migração completa dos demais módulos forem concluídos. A extensão não publica automaticamente nem contorna controles do Facebook.
