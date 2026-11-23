@@ -254,7 +254,7 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
     if(!supabase||!workspaceId)return;
     const {data,error}=await supabase.from('av_campaign_posts').select('status').eq('workspace_id',workspaceId).eq('campaign_run_id',runId);
     if(error)return;
-    const active=(data??[]).some(x=>['scheduled','awaiting_admin','publishing'].includes(x.status));
+    const active=(data??[]).some((x: {status:string})=>['scheduled','awaiting_admin','publishing'].includes(x.status));
     if(!active)await supabase.from('av_campaign_runs').update({status:'completed',completed_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq('id',runId).eq('workspace_id',workspaceId);
   }
   async function pauseRun(run:CampaignRun,paused:boolean){
