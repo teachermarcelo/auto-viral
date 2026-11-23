@@ -325,7 +325,7 @@ function App() {
 
   return (
     <div className="app-shell">
-      <div role="status" style={{padding:'9px 18px',background:'#12352d',color:'#a8f0d5',borderBottom:'1px solid #286c59',fontSize:12,textAlign:'center'}}>AutoViral Data Core · Firebase conectado para autenticação e Produtos. Outros módulos estão em migração progressiva.</div>
+      <div role="status" style={{padding:'9px 18px',background:'#12352d',color:'#a8f0d5',borderBottom:'1px solid #286c59',fontSize:12,textAlign:'center'}}>AutoViral Data Core · Firebase Authentication e Firestore ativos para os dados dos módulos. Meta, IA e publicação aguardam endpoints seguros.</div>
       {workspaceError && <div role="alert" className="product-feedback error">{workspaceError} Atualize a página ou verifique a configuração do banco de dados.</div>}
       {workspaceLoading && <div role="status" className="product-feedback">Preparando seu workspace…</div>}
       {mobileOpen && <button className="mobile-scrim" aria-label="Fechar menu" onClick={() => setMobileOpen(false)} />}
