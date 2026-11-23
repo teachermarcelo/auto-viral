@@ -34,6 +34,11 @@ export function DistributionAgentPage({ workspaceId }: { workspaceId: string | n
   const [metaLoading, setMetaLoading] = useState(false);
   const [metaError, setMetaError] = useState('');
   const [metaLoaded, setMetaLoaded] = useState(false);
+  const [metaCreatives, setMetaCreatives] = useState<Array<Record<string, any>>>([]);
+  const [creativeLoading, setCreativeLoading] = useState(false);
+  const [creativeError, setCreativeError] = useState('');
+  const [creativeLoaded, setCreativeLoaded] = useState(false);
+
 
   const load = useCallback(async () => {
     if (!supabase || !workspaceId) { setLoading(false); return; }
@@ -95,7 +100,39 @@ export function DistributionAgentPage({ workspaceId }: { workspaceId: string | n
     setMetaLoading(false);
   }
 
-  useEffect(() => { if (workspaceId) void loadMetaAccounts(); }, [workspaceId]);
+
+  async function loadMetaCreatives() {
+    if (!supabase || !workspaceId || !metaAccountId) return;
+    setCreativeLoading(true); setCreativeError(''); setCreativeLoaded(false);
+    const { data, error: invokeError } = await supabase.functions.invoke('av-meta-ads', { body: { action: 'get_ad_creatives', workspace_id: workspaceId, ad_account_id: metaAccountId } });
+    if (invokeError || data?.error) setCreativeError(data?.message || invokeError?.message || 'Não foi possível consultar os criativos autorizados.');
+    else { setMetaCreatives(data?.ads || []); setCreativeLoaded(true); }
+    setCreativeLoading(false);
+  }
+
+  const creativeAnalysis = useMemo(() => {
+    const insightsById = new Map(metaInsights.map(row => [String(row.ad_id || ''), row]));
+    const rows = metaCreatives.map(ad => {
+      const creative = ad.creative || {};
+      const body = String(creative.body || creative.object_story_spec?.link_data?.message || creative.object_story_spec?.video_data?.message || '');
+      const title = String(creative.title || creative.object_story_spec?.link_data?.name || creative.object_story_spec?.video_data?.title || '');
+      const insight = insightsById.get(String(ad.id));
+      const impressions = Number(insight?.impressions || 0);
+      const ctr = Number(insight?.ctr || 0);
+      const copyFlags = [];
+      if (!title.trim()) copyFlags.push('Sem título/headline disponível na API');
+      if (!body.trim()) copyFlags.push('Texto principal não disponível na API');
+      else if (body.trim().length < 40) copyFlags.push('Texto curto: testar benefício e contexto mais claros');
+      else if (body.trim().length > 500) copyFlags.push('Texto longo: testar uma versão mais direta');
+      if (body && !/(saiba mais|compre|garanta|inscreva|acesse|confira|peça|clique|comece|baixe|cadastre)/i.test(body)) copyFlags.push('Testar CTA explícito');
+      return { id:String(ad.id), name:String(ad.name || creative.name || 'Anúncio sem nome'), title, body, impressions, ctr, spend:Number(insight?.spend || 0), copyFlags, hasInsight:Boolean(insight) };
+    });
+    const eligible = rows.filter(r => r.hasInsight && r.impressions >= 1000);
+    const sorted = [...eligible].sort((a,b) => b.ctr-a.ctr);
+    const median = sorted.length ? sorted[Math.floor(sorted.length/2)].ctr : null;
+    return { rows:rows.sort((a,b) => b.ctr-a.ctr), eligibleCount:eligible.length, winner:sorted[0] || null, belowMedian:median===null?[]:sorted.filter(r=>r.ctr<median), median };
+  }, [metaCreatives, metaInsights]);
+\n  useEffect(() => { if (workspaceId) void loadMetaAccounts(); }, [workspaceId]);
   async function savePolicy() {
     if (!supabase || !workspaceId) return;
     setSaving(true); setMessage(''); setError('');
@@ -130,6 +167,19 @@ export function DistributionAgentPage({ workspaceId }: { workspaceId: string | n
       <div style={{display:"flex",gap:10,marginTop:14,alignItems:"center",flexWrap:"wrap"}}><button className="av-button secondary" disabled={metaLoading} onClick={()=>void loadMetaAccounts()}><RefreshCw size={15}/> Atualizar contas</button><button className="av-button primary" disabled={metaLoading||!metaAccountId} onClick={()=>void loadMetaInsights()}>{metaLoading?"Consultando…":"Buscar Insights da Meta"}</button>{metaLoaded&&<span className="av-feedback">Dados recebidos da Marketing API</span>}</div>
       {metaError&&<p className="av-feedback error" role="alert" style={{marginTop:12}}>{metaError}</p>}
       {metaLoaded && <div className="av-table-wrap"><table className="av-table"><thead><tr><th>Anúncio / criativo</th><th>Impressões</th><th>Alcance</th><th>Cliques</th><th>CTR</th><th>Gasto</th><th>CPC</th></tr></thead><tbody>{metaInsights.map((row,i)=><tr key={String(row.ad_id||row.adset_id||row.campaign_id||i)}><td><strong>{row.ad_name||row.adset_name||row.campaign_name||"Sem nome"}</strong><small>{row.campaign_name||row.adset_name||row.ad_id||""}</small></td><td>{Number(row.impressions||0).toLocaleString("pt-BR")}</td><td>{Number(row.reach||0).toLocaleString("pt-BR")}</td><td>{Number(row.inline_link_clicks||row.clicks||0).toLocaleString("pt-BR")}</td><td>{Number(row.ctr||0).toLocaleString("pt-BR",{maximumFractionDigits:2})}%</td><td>{row.spend??"—"}</td><td>{row.cpc??"—"}</td></tr>)}</tbody></table>{metaInsights.length===0&&<p className="av-empty">A Meta não retornou anúncios com dados neste período.</p>}</div>}
+      <div style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap',marginTop:16}}>
+        <button className="av-button secondary" disabled={creativeLoading||!metaAccountId} onClick={()=>void loadMetaCreatives()}>{creativeLoading?'Lendo criativos…':'Carregar criativos e copies'}</button>
+        {creativeLoaded&&<span className="av-feedback">Metadados recebidos da Meta</span>}
+      </div>
+      {creativeError&&<p className="av-feedback error" role="alert">{creativeError}</p>}
+      {creativeLoaded&&<div style={{marginTop:16}}>
+        <h3 style={{margin:'0 0 8px'}}>AI Creative Intelligence · diagnóstico assistido</h3>
+        <p className="av-muted">Regras transparentes sobre metadados e desempenho. Só compara anúncios com pelo menos 1.000 impressões; não é uma previsão de vendas.</p>
+        {creativeAnalysis.winner&&<div className="av-safety-note"><TrendingUp size={18}/><div><strong>Maior CTR na amostra elegível: {creativeAnalysis.winner.name}</strong><span>CTR {creativeAnalysis.winner.ctr.toLocaleString('pt-BR',{maximumFractionDigits:2})}% · {creativeAnalysis.winner.impressions.toLocaleString('pt-BR')} impressões. Use como candidato a novo teste, não como garantia de escala.</span></div></div>}
+        {creativeAnalysis.eligibleCount===0&&<p className="av-empty">Ainda não há anúncios com 1.000 impressões e Insights carregados. Busque os Insights no mesmo período e nível “Por anúncio”.</p>}
+        <div className="av-table-wrap"><table className="av-table"><thead><tr><th>Anúncio</th><th>CTR</th><th>Impressões</th><th>Diagnóstico de copy</th></tr></thead><tbody>{creativeAnalysis.rows.map(row=><tr key={row.id}><td><strong>{row.name}</strong><small>{row.title||'Sem título disponível'}</small></td><td>{row.hasInsight?row.ctr.toLocaleString('pt-BR',{maximumFractionDigits:2})+'%':'Sem Insights'}</td><td>{row.impressions.toLocaleString('pt-BR')}</td><td>{row.copyFlags.length?row.copyFlags.join(' · '):'Metadados básicos presentes; testar variações para validar.'}</td></tr>)}</tbody></table></div>
+        <div className="av-safety-note"><ShieldCheck size={18}/><div><strong>Limite da análise de copy</strong><span>A API pode não retornar todo o texto do anúncio ou a mídia. A avaliação é heurística (presença, extensão e CTA); não interpreta imagem/vídeo nem prova causalidade. Para diagnóstico completo, compare os dados com a peça criativa original.</span></div></div>
+      </div>}
       <div className="av-safety-note"><ShieldCheck size={18}/><div><strong>Transparência das métricas</strong><span>Impressões, alcance, cliques, CTR, gasto e CPC vêm dos Insights de anúncios da Meta e exigem a permissão ads_read. Para Insights orgânicos de Instagram/Facebook (Stories, Reels e publicações), será necessária uma integração separada com permissões e endpoints específicos.</span></div></div>
     </section>
     <section className="av-panel" style={{padding:20,marginBottom:18}}>
