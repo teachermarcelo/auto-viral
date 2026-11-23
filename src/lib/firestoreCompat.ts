@@ -1,5 +1,5 @@
 import {
-  collection, deleteDoc, doc, getDocs, serverTimestamp, setDoc, updateDoc,
+  collection, deleteDoc, doc, getDocs, setDoc, updateDoc,
 } from 'firebase/firestore';
 import { firebaseAuth, firestore } from './firebase';
 
