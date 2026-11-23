@@ -1,12 +1,12 @@
 # AutoViral Data Core — plano de implementação
 
-Status: Fase 0 concluída (inventário do repositório); nenhuma migração de dados executada.
+Status: Fase 1 iniciada — Firebase Authentication, workspace Firestore e CRUD do Product Center conectados; migração dos demais módulos pendente.
 Branch: `feat/autoviral-data-core`
 Base: `feat/platform-migration-chrome-extension`
 
-## Objetivo
+## Objetivo e arquitetura escolhida
 
-Construir uma camada de dados controlada pelo projeto AutoViral, sem dependência obrigatória do SDK, Auth, Storage ou Edge Functions do Supabase. O primeiro destino de banco recomendado é PostgreSQL gerenciado no plano gratuito do Neon; a API será código próprio em Cloudflare Workers. O projeto e as credenciais ficam sob controle do proprietário. Isso é um banco/projeto próprio em infraestrutura gerenciada, não um servidor físico próprio.
+Construir o AutoViral Data Core sob controle do proprietário, priorizando custo zero e simplicidade operacional. A decisão atual é usar Firebase Authentication + Cloud Firestore (banco padrão) como núcleo inicial. O Supabase permanece intacto e em paralelo até a migração de cada módulo ser validada. Cloudflare Workers/R2 poderão complementar endpoints e arquivos quando necessário, sem tornar o projeto dependente de um serviço pago.
 
 ## Inventário confirmado
 
@@ -20,21 +20,21 @@ Construir uma camada de dados controlada pelo projeto AutoViral, sem dependênci
 - Existem Edge Functions Supabase para Meta OAuth/Ads, publicação de Stories, agendamento, Kiwify, captação de leads, cliques e ferramentas Gemini. Cada uma precisa de substituta API/Worker e testes próprios.
 - A branch padrão `main` contém apenas README; o código ativo e o workflow do Pages estão em `feat/platform-migration-chrome-extension`. O trabalho novo é isolado nesta branch.
 
-## Arquitetura-alvo recomendada
+## Arquitetura-alvo atual
 
-1. **PostgreSQL (Neon Free):** dados relacionais e migrations SQL versionadas no repositório.
-2. **API própria (Cloudflare Workers):** única entrada do frontend para operações privadas; valida sessão, autorização por workspace, validação de payloads e limites.
-3. **Autenticação:** camada independente do banco, com sessões seguras e papéis por workspace. A implementação deve ser escolhida e validada antes de liberar dados reais; nunca colocar segredo de servidor no bundle Vite.
-4. **Arquivos:** manter URLs/metadata no PostgreSQL; escolher storage separado após medir volume e validar limites gratuitos. Não misturar binários com linhas do banco.
-5. **Observabilidade:** logs de auditoria, health check, métricas de erros e exportação/backup.
-6. **Frontend:** introduzir um contrato `DataProvider` e adaptadores. Migrar módulo a módulo, sem trocar todas as chamadas de uma vez.
+1. **Firebase Authentication:** login e cadastro por e-mail/senha. Cada UID autentica o proprietário.
+2. **Cloud Firestore (banco padrão):** documentos isolados em `workspaces/{workspaceId}` e subcoleções por módulo. O primeiro workspace usa o UID como ID, com `ownerUid` validado pelas regras.
+3. **Regras Firestore:** todas as operações exigem autenticação e vínculo ao workspace. Nunca publicar regras abertas.
+4. **Arquivos:** Firebase Storage está desativado no fluxo atual para respeitar a preferência por Spark/custo zero; o Cloud Storage for Firebase exige Blaze desde 03/02/2026. Usar URLs de imagem por enquanto e avaliar Cloudflare R2 como armazenamento separado sem ativar faturamento Firebase.
+5. **Auditoria:** subcoleção `auditEvents`, health checks, tratamento de limites e exportação.
+6. **Frontend:** migrar cada módulo para funções de dados Firebase/contratos isolados, sem substituir todas as chamadas em uma única alteração.
 
-### Por que Neon + Workers
+### Limites gratuitos e custos
 
-- Neon mantém PostgreSQL, reduzindo a distância em relação ao schema SQL atual.
-- A documentação consultada do Neon informa plano Free com 100 CU-hours por projeto/mês, 1 GB de armazenamento por projeto e 5 GB de transferência pública por mês; o compute suspende após 5 minutos de inatividade. Limites podem suspender consultas quando esgotados.
-- Cloudflare Workers Free informa 100.000 requests/dia e 10 ms de CPU por invocação. É adequado para protótipo/API leve, não para prometer processamento pesado ou automações contínuas ilimitadas.
-- Cloudflare D1 também tem plano gratuito, mas é SQLite e impõe limites diários/por banco; não é a primeira escolha porque o projeto atual já usa PostgreSQL e funções SQL específicas.
+- O Cloud Firestore no Spark inclui até 1 GiB armazenado, 50.000 leituras/dia, 20.000 gravações/dia, 20.000 exclusões/dia e 10 GiB/mês de transferência de saída. As cotas são por projeto e podem bloquear o serviço ao serem excedidas.
+- Firebase Authentication para login por e-mail/senha está disponível sem custo nas condições do plano Spark.
+- Cloud Storage for Firebase exige o plano Blaze para provisionar ou manter acesso a buckets padrão; por isso, o upload direto foi desativado no Product Center enquanto o projeto permanecer Spark.
+- Nenhuma etapa deve ativar cobrança ou alterar o plano Firebase sem autorização expressa do proprietário.
 
 ## Plano não destrutivo
 
@@ -43,22 +43,22 @@ Construir uma camada de dados controlada pelo projeto AutoViral, sem dependênci
 - Catalogar migrations, funções server-side e armazenamento.
 - Não acessar nem alterar tabelas compartilhadas de outros produtos.
 
-### Fase 1 — fundação local (próxima)
-- Criar `data-core/` com schema PostgreSQL portátil, migrations numeradas, contrato API e ambiente Docker Compose para desenvolvimento local.
-- Adicionar testes de schema e de autorização por workspace.
-- Não mudar ainda o provider do frontend nem o workflow de produção.
+### Fase 1 — fundação Firebase (em andamento)
+- Inicializar Firebase Auth e Firestore no frontend.
+- Autenticar por e-mail/senha e provisionar workspace/membro proprietário.
+- Migrar CRUD de Produtos para Firestore, sem upload de binários no Spark.
+- Publicar e testar regras Firestore antes de armazenar dados reais.
+- Não alterar a branch `main` nem o workflow de produção sem validação.
 
-### Fase 2 — serviço remoto gratuito
-- O proprietário cria/autoriza a conta Neon e Cloudflare.
-- Criar projeto PostgreSQL e Worker de staging.
-- Configurar secrets apenas no painel do Worker/GitHub Actions; nunca em `VITE_*`.
-- Executar migrations em banco vazio e validar saúde, autenticação, isolamento e backups.
+### Fase 2 — migração dos módulos
+- Migrar Campanhas, comunidades, públicos, links, posts, leads, vendas, analytics e agente de distribuição em sequência.
+- Para cada módulo: mapear campos, implementar CRUD, validar regras, testar leitura/gravação e comparar contagens.
+- Substituir Edge Functions por Workers/endpoints próprios apenas após inventário e testes individuais.
 
-### Fase 3 — compatibilidade
-- Implementar adaptador Supabase legado e adaptador AutoViral API.
-- Começar por leitura/CRUD de Produtos em ambiente de staging.
-- Comparar resultados e erros; manter Supabase como fonte oficial até reconciliação.
-- Migrar campanhas, comunidades, públicos, links, posts, leads, vendas e métricas por lotes idempotentes, com contagem e hash/checksum.
+### Fase 3 — compatibilidade e importação
+- Implementar adaptador de leitura legado para exportações do Supabase.
+- Manter Supabase como fonte oficial até reconciliação.
+- Migrar por lotes idempotentes, com contagem e hash/checksum.
 - Preservar IDs, timestamps, relacionamentos e registros de origem.
 
 ### Fase 4 — funções e arquivos
@@ -87,14 +87,15 @@ Construir uma camada de dados controlada pelo projeto AutoViral, sem dependênci
 
 ## Bloqueios e decisões
 
-- A conta Neon/Cloudflare ainda precisa ser criada/conectada pelo proprietário; este repositório não concede acesso a contas externas.
-- A cota/egress do Supabase está bloqueada segundo o usuário. A exportação real de dados pode precisar aguardar o restabelecimento do acesso ou usar um backup previamente existente.
+- O projeto Firebase `autoviral-data-core` e o app Web foram criados pelo proprietário.
+- O Firebase Auth está habilitado para e-mail/senha e Google; a interface atual usa e-mail/senha.
+- O Firestore está criado; as regras do repositório ainda precisam ser publicadas manualmente no console.
+- A cota/egress do Supabase está bloqueada segundo o usuário. A exportação real pode precisar aguardar o restabelecimento do acesso ou usar backup existente.
 - A publicação atual está em modo demonstração e sem autenticação no frontend. Antes de conectar dados reais, é obrigatório restabelecer autenticação/controle de acesso no backend.
 - O plano gratuito não é ilimitado nem garante SLA. O projeto deve incluir alertas e exportações periódicas.
 
 ## Referências oficiais consultadas
 
-- Neon Free plan: https://neon.com/docs/introduction/plans
-- Neon quotas: https://neon.com/docs/introduction/usage
-- Cloudflare Workers limits: https://developers.cloudflare.com/workers/platform/limits/
-- Cloudflare D1 limits: https://developers.cloudflare.com/d1/platform/limits/
+- Firebase pricing: https://firebase.google.com/pricing/
+- Firestore quotas: https://firebase.google.com/docs/firestore/quotas
+- Cloud Storage billing requirements: https://firebase.google.com/docs/storage/faqs-storage-changes-announced-sept-2024
