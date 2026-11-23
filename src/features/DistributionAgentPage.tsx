@@ -1,6 +1,6 @@
 import './distribution-agent.css';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Activity, AlertTriangle, BarChart3, Bot, Clock3, PauseCircle, RefreshCw, Save, ShieldCheck, TrendingUp } from 'lucide-react';
+import { Activity, BarChart3, Bot, PauseCircle, RefreshCw, Save, ShieldCheck, TrendingUp } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 type Settings = {
