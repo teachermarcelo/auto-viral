@@ -132,7 +132,8 @@ export function DistributionAgentPage({ workspaceId }: { workspaceId: string | n
     const median = sorted.length ? sorted[Math.floor(sorted.length/2)].ctr : null;
     return { rows:rows.sort((a,b) => b.ctr-a.ctr), eligibleCount:eligible.length, winner:sorted[0] || null, belowMedian:median===null?[]:sorted.filter(r=>r.ctr<median), median };
   }, [metaCreatives, metaInsights]);
-\n  useEffect(() => { if (workspaceId) void loadMetaAccounts(); }, [workspaceId]);
+
+  useEffect(() => { if (workspaceId) void loadMetaAccounts(); }, [workspaceId]);
   async function savePolicy() {
     if (!supabase || !workspaceId) return;
     setSaving(true); setMessage(''); setError('');
