@@ -710,7 +710,7 @@ export function IntegrationsPage({workspaceId}:{workspaceId:string|null}){
  const selectedAccount=adAccounts.find(a=>a.id===selectedAdAccount);
  return <div className="av-page"><section className="av-page-heading"><div><span className="av-eyebrow">CANAIS E AUTORIZAÇÕES</span><h1>Integrações</h1><p>Conecte contas por autorização oficial. Tokens permanecem protegidos no backend.</p></div><button className="av-button secondary" onClick={()=>void load()}><RefreshCw size={15}/> Atualizar</button></section>
  {error&&<p className="av-message">{error}</p>}
- <section className="av-panel" style={{marginBottom:18}}><div className="av-panel-title"><h2>Gerenciador Meta Ads</h2><span>Integração em migração para Firebase</span></div>
+ <section className="av-panel" style={{marginBottom:18}}><div className="av-panel-title"><h2>Gerenciador Meta Ads</h2><span>Meta Marketing API · Worker seguro</span></div>
   <p>Conecte sua conta Meta por OAuth oficial. A autorização e os tokens são processados no backend seguro, autenticado pelo Firebase. A conexão só ficará disponível depois que o Worker e os segredos forem configurados.</p>
   <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',marginBottom:12}}><button className="av-button primary" disabled={connecting||!workspaceId||!metaApiConfigured()} onClick={()=>void connectMeta()}>{connecting?'Abrindo Facebook…':'Conectar / reconectar Facebook'}</button><button className="av-button secondary" disabled={!workspaceId||!metaApiConfigured()} onClick={()=>void loadMetaAccounts()}><RefreshCw size={14}/> Verificar conexão</button></div>
   {metaActionMessage&&<p className="av-message">{metaActionMessage}</p>}
