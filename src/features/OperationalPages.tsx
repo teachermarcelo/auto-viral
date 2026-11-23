@@ -301,15 +301,15 @@ export function CampaignsPage({ workspaceId }: { workspaceId: string | null }) {
     const totalPlanned=destinations.length*count;
     for(const community of destinations){
       for(let i=0;i<count;i++){
-        let trackingLinkId:string|null=null,trackingCode:string|null=null;
+        let trackingLinkId:string|null=null;
         if(community&&campaign.destination_url){
           const code=crypto.randomUUID().replaceAll('-','').slice(0,16);
-          const {data,error}=await supabase.from('av_tracking_links').insert({workspace_id:workspaceId,campaign_id:campaign.id,code,destination_url:campaign.destination_url,label:campaign.name+' — '+community.name}).select('id,code').single();
+          const {data,error}=await supabase.from('av_tracking_links').insert({workspace_id:workspaceId,campaign_id:campaign.id,code,destination_url:campaign.destination_url,label:campaign.name+' — '+community.name}).select('id').single();
           if(error){
             await supabase.from('av_campaign_runs').update({status:'cancelled',completed_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq('id',runId).eq('workspace_id',workspaceId);
             setMessage('Falha ao criar link exclusivo para '+community.name+': '+error.message);generatingRunRef.current=false;setGeneratingRun(false);return;
           }
-          trackingLinkId=data.id;trackingCode=data.code;
+          trackingLinkId=data.id;
         }
         tasks.push({workspace_id:workspaceId,campaign_id:campaign.id,campaign_run_id:runId,community_id:community?.id||null,tracking_link_id:trackingLinkId,channel:campaign.channel,scheduled_at:new Date(next).toISOString(),status:'scheduled',copy_snapshot:campaign.copy_text,media_url:campaign.image_url||campaign.video_url,destination_url:campaign.destination_url,execution_note:community?'JOIN_APPROVED:'+new Date(next).toISOString()+'|Participação confirmada pelo operador; tarefa liberada no intervalo mínimo de 5 minutos.':null});
         taskIndex++;next+=interval;
