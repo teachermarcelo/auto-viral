@@ -24,7 +24,11 @@ service cloud.firestore {
     match /workspaces/{workspaceId} {
       allow create: if signedIn()
         && request.resource.data.ownerUid == request.auth.uid;
-      allow read: if isOwner(workspaceId) || isMember(workspaceId);
+      // A new account must be able to read its own not-yet-created workspace
+      // document before the client can issue the first owner-only create.
+      allow get: if (signedIn() && request.auth.uid == workspaceId)
+        || isOwner(workspaceId) || isMember(workspaceId);
+      allow list: if isOwner(workspaceId) || isMember(workspaceId);
       allow update, delete: if isOwner(workspaceId);
 
       match /members/{memberUid} {
