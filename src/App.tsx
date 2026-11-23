@@ -9,8 +9,9 @@ import { isSupabaseConfigured, supabase } from './lib/supabase';
 import { CampaignsPage, AudiencesPage, PostsPage, CRMPage, OpportunitiesPage, AnalyticsPage, IntegrationsPage } from './features/OperationalPages';
 import { GroupCommandCenter } from './features/GroupCommandCenter';
 import { GrowthToolsPage } from './features/GrowthToolsPage';
+import { DistributionAgentPage } from './features/DistributionAgentPage';
 
-type Section = 'Visão geral' | 'Produtos' | 'Campanhas' | 'Grupos e oportunidades' | 'Grupos mapeados' | 'Inteligência de mercado' | 'Radar de audiência' | 'Central de tráfego' | 'Estúdio criativo' | 'CRM e vendas' | 'Funis e páginas' | 'Automações' | 'Analytics' | 'Integrações' | 'Públicos' | 'Importar' | 'Oportunidades' | 'Comentador' | 'YouTube' | 'Pinterest' | 'Email marketing' | 'WhatsApp X1' | 'Robô por cidades' | 'Relatórios IA' | 'Posts' | 'Gerador de link' | 'Tutorial';
+type Section = 'Visão geral' | 'Produtos' | 'Campanhas' | 'Grupos e oportunidades' | 'Grupos mapeados' | 'Inteligência de mercado' | 'Radar de audiência' | 'Central de tráfego' | 'Estúdio criativo' | 'CRM e vendas' | 'Funis e páginas' | 'Automações' | 'Analytics' | 'Integrações' | 'Públicos' | 'Importar' | 'Oportunidades' | 'Comentador' | 'YouTube' | 'Pinterest' | 'Email marketing' | 'WhatsApp X1' | 'Robô por cidades' | 'Relatórios IA' | 'Robô de distribuição' | 'Posts' | 'Gerador de link' | 'Tutorial';
 type Product = {
   id: string;
   name: string;
@@ -73,11 +74,14 @@ const sections: { label: Section; icon: typeof LayoutDashboard; group: string }[
   { label: 'CRM e vendas', icon: ContactRound, group: 'CRESCIMENTO' },
   { label: 'Funis e páginas', icon: Link2, group: 'CRESCIMENTO' },
   { label: 'Automações', icon: Bot, group: 'INTELIGÊNCIA' },
+  { label: 'Robô de distribuição', icon: Activity, group: 'INTELIGÊNCIA' }, 
   { label: 'Analytics', icon: BarChart3, group: 'INTELIGÊNCIA' },
   { label: 'Gerador de link', icon: Link2, group: 'FERRAMENTAS' },
   { label: 'Tutorial', icon: BookOpen, group: 'FERRAMENTAS' },
   { label: 'Integrações', icon: Settings2, group: 'SISTEMA' },
 ];
+const DEMO_MODE = true; // Temporário: abrir a interface sem autenticar enquanto o Supabase estiver bloqueado por cota.
+
 const metrics = [
   { label: 'Visitantes orgânicos', value: '—', change: 'Aguardando conexão', icon: Users, tone: 'cyan' },
   { label: 'Leads capturados', value: '—', change: 'Aguardando conexão', icon: Target, tone: 'purple' },
@@ -91,8 +95,8 @@ function App() {
   useEffect(() => { document.documentElement.dataset.theme = theme; localStorage.setItem('av-theme', theme); }, [theme]);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [workspaceName, setWorkspaceName] = useState('Meu workspace');
-  const [authReady, setAuthReady] = useState(!isSupabaseConfigured);
+  const [workspaceName, setWorkspaceName] = useState(DEMO_MODE ? 'Ambiente de demonstração' : 'Meu workspace');
+  const [authReady, setAuthReady] = useState(DEMO_MODE || !isSupabaseConfigured);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -249,7 +253,7 @@ function App() {
   }
 
   useEffect(() => {
-    if (!supabase) return;
+    if (DEMO_MODE || !supabase) return;
     supabase.auth.getSession().then(({ data }) => {
       const session = data.session;
       setUserEmail(session?.user.email ?? null);
@@ -281,10 +285,10 @@ function App() {
     if (result.error) setAuthMessage(result.error.message);
     else if (authMode === 'signup') setAuthMessage('Conta criada. Verifique seu e-mail para confirmar o acesso.');
   }
-  async function signOut() { await supabase?.auth.signOut(); setUserEmail(null); }
+  async function signOut() { if (DEMO_MODE) return; await supabase?.auth.signOut(); setUserEmail(null); }
 
   if (!authReady) return <div className="loading-screen"><div className="brand-mark"><Sparkles /></div><span>Preparando seu workspace…</span></div>;
-  if (isSupabaseConfigured && !userEmail) return (
+  if (!DEMO_MODE && isSupabaseConfigured && !userEmail) return (
     <main className="auth-screen">
       <div className="auth-panel">
         <Brand />
@@ -305,6 +309,7 @@ function App() {
 
   return (
     <div className="app-shell">
+      {DEMO_MODE && <div role="status" style={{padding:'10px 18px',background:'#3b2d12',color:'#ffe3a3',borderBottom:'1px solid #806326',fontSize:13,textAlign:'center'}}>MODO DEMONSTRAÇÃO TEMPORÁRIO — login desativado. O Supabase está bloqueado por cota; dados, salvamentos, integrações e publicações ficam indisponíveis até a normalização do projeto.</div>}
       {workspaceError && <div role="alert" className="product-feedback error">{workspaceError} Atualize a página ou verifique a configuração do banco de dados.</div>}
       {workspaceLoading && <div role="status" className="product-feedback">Preparando seu workspace…</div>}
       {mobileOpen && <button className="mobile-scrim" aria-label="Fechar menu" onClick={() => setMobileOpen(false)} />}
@@ -314,12 +319,12 @@ function App() {
         <nav>
           {Object.entries(grouped).map(([group, items]) => <div className="nav-group" key={group}><span className="nav-label">{group}</span>{items.map(item => { const Icon = item.icon; return <button key={item.label} className={`nav-item ${active === item.label ? 'active' : ''}`} onClick={() => { setActive(item.label); setMobileOpen(false); }}><Icon size={18} /><span>{item.label}</span>{item.label === 'Automações' && <span className="nav-dot" />}</button>; })}</div>)}
         </nav>
-        <div className="sidebar-bottom"><button className="sidebar-help-compact" onClick={() => setActive('Tutorial')}><CircleHelp size={15}/> Ajuda e tutoriais <ArrowUpRight size={13}/></button><div className="profile-row"><div className="profile-avatar">M</div><div className="profile-info"><strong>{userEmail ? userEmail.split('@')[0] : 'Administrador'}</strong><small>{userEmail ?? 'Workspace proprietário'}</small></div><button className="icon-button" title="Sair" onClick={signOut}><LogOut size={16} /></button></div></div>
+        <div className="sidebar-bottom"><button className="sidebar-help-compact" onClick={() => setActive('Tutorial')}><CircleHelp size={15}/> Ajuda e tutoriais <ArrowUpRight size={13}/></button><div className="profile-row"><div className="profile-avatar">M</div><div className="profile-info"><strong>{DEMO_MODE ? 'Modo demonstração' : userEmail ? userEmail.split('@')[0] : 'Administrador'}</strong><small>{DEMO_MODE ? 'Sem conexão com o banco' : userEmail ?? 'Workspace proprietário'}</small></div>{!DEMO_MODE && <button className="icon-button" title="Sair" onClick={signOut}><LogOut size={16} /></button>}</div></div>
       </aside>
       <main className="main-area">
         <header className="topbar"><div className="topbar-left"><button className="icon-button menu-toggle" onClick={() => setMobileOpen(true)}><Menu /></button><div className="breadcrumb">AutoViral AI <span>/</span> <strong>{active}</strong></div></div><div className="topbar-actions"><button className="icon-button" title="Alternar tema claro/escuro" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? <Sun size={17}/> : <Moon size={17}/>}</button><div className="search-box"><Search size={16} /><input placeholder="Buscar recursos..." /><kbd>⌘ K</kbd></div><button className="icon-button notification-button"><Bell size={18} /><i /></button><div className="top-avatar">M</div></div></header>
         <div className="page-content">
-          {active === 'Públicos' ? <AudiencesPage workspaceId={workspaceId} /> : active === 'Integrações' ? <IntegrationsPage workspaceId={workspaceId} /> : active === 'Analytics' ? <AnalyticsPage workspaceId={workspaceId} /> : active === 'Posts' ? <PostsPage workspaceId={workspaceId} /> : active === 'CRM e vendas' ? <CRMPage workspaceId={workspaceId} /> : active === 'Oportunidades' ? <OpportunitiesPage workspaceId={workspaceId} /> : ['Estúdio criativo','Inteligência de mercado','Radar de audiência','Central de tráfego','Automações','Funis e páginas','Comentador','YouTube','Pinterest','Email marketing','WhatsApp X1','Robô por cidades','Relatórios IA','Importar'].includes(active) ? <GrowthToolsPage active={active} workspaceId={workspaceId} /> : active === 'Gerador de link' ? <CampaignsPage workspaceId={workspaceId} /> : active !== 'Visão geral' && active !== 'Produtos' && active !== 'Campanhas' && active !== 'Grupos e oportunidades' && active !== 'Grupos mapeados' ? (
+          {active === 'Robô de distribuição' ? <DistributionAgentPage workspaceId={workspaceId} /> : active === 'Públicos' ? <AudiencesPage workspaceId={workspaceId} /> : active === 'Integrações' ? <IntegrationsPage workspaceId={workspaceId} /> : active === 'Analytics' ? <AnalyticsPage workspaceId={workspaceId} /> : active === 'Posts' ? <PostsPage workspaceId={workspaceId} /> : active === 'CRM e vendas' ? <CRMPage workspaceId={workspaceId} /> : active === 'Oportunidades' ? <OpportunitiesPage workspaceId={workspaceId} /> : ['Estúdio criativo','Inteligência de mercado','Radar de audiência','Central de tráfego','Automações','Funis e páginas','Comentador','YouTube','Pinterest','Email marketing','WhatsApp X1','Robô por cidades','Relatórios IA','Importar'].includes(active) ? <GrowthToolsPage active={active} workspaceId={workspaceId} /> : active === 'Gerador de link' ? <CampaignsPage workspaceId={workspaceId} /> : active !== 'Visão geral' && active !== 'Produtos' && active !== 'Campanhas' && active !== 'Grupos e oportunidades' && active !== 'Grupos mapeados' ? (
             <WorkspaceSection active={active} onNavigate={setActive} />
           ) : active === 'Produtos' ? (
             <ProductsPage
