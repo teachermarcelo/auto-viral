@@ -12,8 +12,8 @@ Never commit service-account JSON, Admin SDK private keys, or database secrets.
 
 ## Console steps required
 
-1. In Firebase Console, open **Authentication → Sign-in method** and enable **Email/Password**.
-2. Open **Firestore Database → Rules** and publish the repository's `firestore.rules` file.
+1. In Firebase Console, open **Authentication → Sign-in method** and enable **Email/Password** and **Google**. In **Authentication → Settings → Authorized domains**, add `teachermarcelo.github.io` (the GitHub Pages host) if it is not already listed.
+2. Open **Firestore Database → Rules** and publish the latest repository `firestore.rules` file. It allows a signed-in user to bootstrap only their own workspace; publish the updated file after every rules change.
 3. In **Project settings → Your apps → AutoViral Web**, confirm the app ID matches `src/lib/firebase.ts`.
 4. In the app, create an account or sign in. The first successful login provisions `workspaces/{uid}` and its owner membership automatically.
 5. Do not activate Firebase Storage on the Spark plan. The repository's `storage.rules` is only a future reference; product image upload currently accepts a public image URL to avoid a billing upgrade.
