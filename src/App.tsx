@@ -7,8 +7,7 @@ import {
 } from 'lucide-react';
 import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { collection, deleteDoc, doc, getDoc, getDocs, orderBy, query, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
-import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage';
-import { firebaseAuth, firestore, firebaseStorage } from './lib/firebase';
+import { firebaseAuth, firestore } from './lib/firebase';
 import { workspaceCollectionPath, workspaceMemberPath, workspacePath } from './lib/firestorePaths';
 import { CampaignsPage, AudiencesPage, PostsPage, CRMPage, OpportunitiesPage, AnalyticsPage, IntegrationsPage } from './features/OperationalPages';
 import { GroupCommandCenter } from './features/GroupCommandCenter';
@@ -214,19 +213,10 @@ function App() {
     setSavingProduct(true);
     setProductMessage('');
     let uploadedImageUrl = productForm.image_url.trim() || null;
-    let uploadedImagePath: string | null = null;
     if (productImageFile) {
-      const extension = productImageFile.type === 'image/png' ? 'png' : productImageFile.type === 'image/webp' ? 'webp' : 'jpg';
-      uploadedImagePath = `workspaces/${workspaceId}/products/${crypto.randomUUID()}.${extension}`;
-      try {
-        const imageRef = ref(firebaseStorage, uploadedImagePath);
-        await uploadBytes(imageRef, productImageFile, { contentType: productImageFile.type, cacheControl: 'public,max-age=3600' });
-        uploadedImageUrl = await getDownloadURL(imageRef);
-      } catch (error) {
-        setSavingProduct(false);
-        setProductMessage(`Falha no upload Firebase Storage: ${error instanceof Error ? error.message : 'verifique a configuração do Storage'}`);
-        return;
-      }
+      setSavingProduct(false);
+      setProductMessage('Para manter o projeto no plano gratuito, o envio de arquivos está temporariamente desativado: o Firebase Storage exige o plano Blaze. Cole a URL pública da imagem no campo de imagem. Vamos conectar um armazenamento compatível com a cota gratuita em uma etapa própria.');
+      return;
     }
     const payload = {
       name: productForm.name.trim(), description: productForm.description.trim() || null,
@@ -243,7 +233,6 @@ function App() {
         await setDoc(productRef, { ...payload, createdAt: now, updatedAt: now, schemaVersion: 1 });
       }
     } catch (error) {
-      if (uploadedImagePath) await deleteObject(ref(firebaseStorage, uploadedImagePath)).catch(() => undefined);
       setSavingProduct(false);
       setProductMessage(`Erro ao salvar produto: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
       return;
