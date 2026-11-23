@@ -5,7 +5,11 @@ import {
   LayoutDashboard, Link2, LogOut, Menu, Package, Plus, Sun, Moon, MessageSquare, Play, FileText, BookOpen, UploadCloud,
   Search, Settings2, ShieldCheck, Sparkles, Target, Users, WandSparkles, X, Pencil, Trash2, RefreshCw,
 } from 'lucide-react';
-import { isSupabaseConfigured, supabase } from './lib/supabase';
+import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { collection, deleteDoc, doc, getDoc, getDocs, orderBy, query, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
+import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage';
+import { firebaseAuth, firestore, firebaseStorage } from './lib/firebase';
+import { workspaceCollectionPath, workspaceMemberPath, workspacePath } from './lib/firestorePaths';
 import { CampaignsPage, AudiencesPage, PostsPage, CRMPage, OpportunitiesPage, AnalyticsPage, IntegrationsPage } from './features/OperationalPages';
 import { GroupCommandCenter } from './features/GroupCommandCenter';
 import { GrowthToolsPage } from './features/GrowthToolsPage';
@@ -80,7 +84,7 @@ const sections: { label: Section; icon: typeof LayoutDashboard; group: string }[
   { label: 'Tutorial', icon: BookOpen, group: 'FERRAMENTAS' },
   { label: 'Integrações', icon: Settings2, group: 'SISTEMA' },
 ];
-const DEMO_MODE = true; // Temporário: abrir a interface sem autenticar enquanto o Supabase estiver bloqueado por cota.
+const DEMO_MODE = false;
 
 const metrics = [
   { label: 'Visitantes orgânicos', value: '—', change: 'Aguardando conexão', icon: Users, tone: 'cyan' },
@@ -95,8 +99,8 @@ function App() {
   useEffect(() => { document.documentElement.dataset.theme = theme; localStorage.setItem('av-theme', theme); }, [theme]);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [workspaceName, setWorkspaceName] = useState(DEMO_MODE ? 'Ambiente de demonstração' : 'Meu workspace');
-  const [authReady, setAuthReady] = useState(DEMO_MODE || !isSupabaseConfigured);
+  const [workspaceName, setWorkspaceName] = useState('Meu workspace');
+  const [authReady, setAuthReady] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -115,51 +119,41 @@ function App() {
   const [savingProduct, setSavingProduct] = useState(false);
   const [productImageFile, setProductImageFile] = useState<File | null>(null);
 
-  async function loadOrCreateWorkspace(_userId: string) {
-    if (!supabase) return;
+  async function loadOrCreateWorkspace(uid: string, displayName?: string | null) {
     setWorkspaceError('');
     setWorkspaceLoading(true);
     try {
-      const { data: memberships, error: membershipError } = await supabase
-        .from('av_workspace_members')
-        .select('workspace_id, av_workspaces(id,name)')
-        .order('created_at', { ascending: true })
-        .limit(1);
-      if (membershipError) throw membershipError;
-
-      const membership = memberships?.[0] as
-        | { workspace_id: string; av_workspaces: { id: string; name: string }[] | null }
-        | undefined;
-
-      if (membership?.workspace_id) {
-        const workspace = membership.av_workspaces?.[0] ?? null;
-        if (!workspace) {
-          const { data, error } = await supabase
-            .from('av_workspaces').select('id,name').eq('id', membership.workspace_id).single();
-          if (error) throw error;
-          setWorkspaceName(data.name);
-          setWorkspaceId(data.id);
-        } else {
-          setWorkspaceName(workspace.name);
-          setWorkspaceId(workspace.id);
+      const workspaceRef = doc(firestore, workspacePath(uid));
+      const workspaceSnap = await getDoc(workspaceRef);
+      if (!workspaceSnap.exists()) {
+        const name = displayName?.trim() || 'Meu workspace';
+        await setDoc(workspaceRef, {
+          name, ownerUid: uid, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+          schemaVersion: 1, provider: 'firebase',
+        });
+        await setDoc(doc(firestore, workspaceMemberPath(uid, uid)), {
+          uid, role: 'owner', email: firebaseAuth.currentUser?.email ?? null,
+          createdAt: serverTimestamp(),
+        });
+        await setDoc(doc(firestore, workspaceCollectionPath(uid, 'auditEvents'), 'workspace-created'), {
+          action: 'workspace.created', actorUid: uid, createdAt: serverTimestamp(),
+        });
+        setWorkspaceName(name);
+      } else {
+        const data = workspaceSnap.data();
+        if (data.ownerUid !== uid) throw new Error('Este workspace não pertence à conta autenticada.');
+        setWorkspaceName(data.name || 'Meu workspace');
+        const memberRef = doc(firestore, workspaceMemberPath(uid, uid));
+        const memberSnap = await getDoc(memberRef);
+        if (!memberSnap.exists()) {
+          await setDoc(memberRef, { uid, role: 'owner', email: firebaseAuth.currentUser?.email ?? null, createdAt: serverTimestamp() });
         }
-        return;
       }
-
-      const { data: newWorkspaceId, error: createError } = await supabase
-        .rpc('av_create_workspace', { p_name: 'Meu workspace' });
-      if (createError) throw createError;
-      if (!newWorkspaceId) throw new Error('A criação do workspace não retornou um identificador.');
-
-      const { data: createdWorkspace, error: fetchError } = await supabase
-        .from('av_workspaces').select('id,name').eq('id', newWorkspaceId).single();
-      if (fetchError) throw fetchError;
-      setWorkspaceName(createdWorkspace.name);
-      setWorkspaceId(createdWorkspace.id);
+      setWorkspaceId(uid);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Erro desconhecido';
-      console.error('Falha ao preparar workspace:', message);
-      setWorkspaceError(`Não foi possível preparar seu workspace: ${message}`);
+      console.error('Falha ao preparar workspace Firebase:', message);
+      setWorkspaceError(`Não foi possível preparar seu workspace no Firebase: ${message}`);
       setWorkspaceId(null);
     } finally {
       setWorkspaceLoading(false);
@@ -167,15 +161,20 @@ function App() {
   }
 
   async function loadProducts(targetWorkspaceId = workspaceId) {
-    if (!supabase || !targetWorkspaceId) return;
+    if (!targetWorkspaceId) return;
     setProductsLoading(true);
     setProductsError('');
-    const { data, error } = await supabase.from('av_products')
-      .select('id,name,description,product_type,niche,price,currency,checkout_url,image_url,target_audience,benefits,bonuses,guarantee,promo_price,status,created_at')
-      .eq('workspace_id', targetWorkspaceId).order('created_at', { ascending: false });
-    if (error) setProductsError(`Não foi possível carregar os produtos: ${error.message}`);
-    else setProducts((data ?? []) as Product[]);
-    setProductsLoading(false);
+    try {
+      const productsQuery = query(collection(firestore, workspaceCollectionPath(targetWorkspaceId, 'products')), orderBy('createdAt', 'desc'));
+      const snapshot = await getDocs(productsQuery);
+      setProducts(snapshot.docs.map(item => {
+        const data = item.data();
+        const created = data.createdAt?.toDate?.() as Date | undefined;
+        return { ...data, id: item.id, created_at: created?.toISOString() ?? new Date().toISOString() } as Product;
+      }));
+    } catch (error) {
+      setProductsError(`Não foi possível carregar os produtos: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+    } finally { setProductsLoading(false); }
   }
 
   function openNewProduct() {
@@ -198,7 +197,7 @@ function App() {
   }
   async function saveProduct(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!supabase || !workspaceId) { setProductMessage('Workspace ainda não está disponível. Recarregue a página e tente novamente.'); return; }
+    if (!workspaceId) { setProductMessage('Workspace ainda não está disponível. Recarregue a página e tente novamente.'); return; }
     const parsedPrice = productForm.price.trim() === '' ? null : Number(productForm.price.replace(',', '.'));
     const parsedPromoPrice = productForm.promo_price.trim() === '' ? null : Number(productForm.promo_price.replace(',', '.'));
     if (parsedPrice !== null && (!Number.isFinite(parsedPrice) || parsedPrice < 0)) {
@@ -219,11 +218,16 @@ function App() {
     let uploadedImagePath: string | null = null;
     if (productImageFile) {
       const extension = productImageFile.type === 'image/png' ? 'png' : productImageFile.type === 'image/webp' ? 'webp' : 'jpg';
-      const objectPath = `${workspaceId}/${crypto.randomUUID()}.${extension}`;
-      const { error: uploadError } = await supabase.storage.from('av-product-media').upload(objectPath, productImageFile, { contentType: productImageFile.type, cacheControl: '3600', upsert: false });
-      if (uploadError) { setSavingProduct(false); setProductMessage(`Falha no upload da imagem: ${uploadError.message}`); return; }
-      uploadedImagePath = objectPath;
-      uploadedImageUrl = supabase.storage.from('av-product-media').getPublicUrl(objectPath).data.publicUrl;
+      uploadedImagePath = `workspaces/${workspaceId}/products/${crypto.randomUUID()}.${extension}`;
+      try {
+        const imageRef = ref(firebaseStorage, uploadedImagePath);
+        await uploadBytes(imageRef, productImageFile, { contentType: productImageFile.type, cacheControl: 'public,max-age=3600' });
+        uploadedImageUrl = await getDownloadURL(imageRef);
+      } catch (error) {
+        setSavingProduct(false);
+        setProductMessage(`Falha no upload Firebase Storage: ${error instanceof Error ? error.message : 'verifique a configuração do Storage'}`);
+        return;
+      }
     }
     const payload = {
       name: productForm.name.trim(), description: productForm.description.trim() || null,
@@ -231,42 +235,47 @@ function App() {
       price: parsedPrice, currency: productForm.currency.toUpperCase(),
       checkout_url: productForm.checkout_url.trim() || null, image_url: uploadedImageUrl, target_audience: productForm.target_audience.trim() || null, benefits: productForm.benefits.trim() || null, bonuses: productForm.bonuses.trim() || null, guarantee: productForm.guarantee.trim() || null, promo_price: parsedPromoPrice, status: productForm.status,
     };
-    const query = editingProductId
-      ? supabase.from('av_products').update(payload).eq('id', editingProductId).eq('workspace_id', workspaceId)
-      : supabase.from('av_products').insert({ ...payload, workspace_id: workspaceId });
-    const { error } = await query;
-    setSavingProduct(false);
-    if (error) {
-      if (uploadedImagePath) await supabase.storage.from('av-product-media').remove([uploadedImagePath]);
-      setProductMessage(`Erro ao salvar produto: ${error.message}`); return;
+    try {
+      const now = serverTimestamp();
+      if (editingProductId) {
+        await updateDoc(doc(firestore, workspaceCollectionPath(workspaceId, 'products'), editingProductId), { ...payload, updatedAt: now });
+      } else {
+        const productRef = doc(collection(firestore, workspaceCollectionPath(workspaceId, 'products')));
+        await setDoc(productRef, { ...payload, createdAt: now, updatedAt: now, schemaVersion: 1 });
+      }
+    } catch (error) {
+      if (uploadedImagePath) await deleteObject(ref(firebaseStorage, uploadedImagePath)).catch(() => undefined);
+      setSavingProduct(false);
+      setProductMessage(`Erro ao salvar produto: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+      return;
     }
+    setSavingProduct(false);
     setFormOpen(false);
     setProductImageFile(null);
     setProductMessage(editingProductId ? 'Produto atualizado.' : 'Produto cadastrado.');
     await loadProducts();
   }
   async function deleteProduct(product: Product) {
-    if (!supabase || !workspaceId || !window.confirm(`Excluir "${product.name}"? Esta ação não pode ser desfeita.`)) return;
-    const { error } = await supabase.from('av_products').delete().eq('id', product.id).eq('workspace_id', workspaceId);
-    if (error) setProductsError(`Não foi possível excluir: ${error.message}`);
-    else { setProductMessage('Produto excluído.'); await loadProducts(); }
+    if (!workspaceId || !window.confirm(`Excluir "${product.name}"? Esta ação não pode ser desfeita.`)) return;
+    try {
+      await deleteDoc(doc(firestore, workspaceCollectionPath(workspaceId, 'products'), product.id));
+      setProductMessage('Produto excluído.');
+      await loadProducts();
+    } catch (error) {
+      setProductsError(`Não foi possível excluir: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+    }
   }
 
-  useEffect(() => {
-    if (DEMO_MODE || !supabase) return;
-    supabase.auth.getSession().then(({ data }) => {
-      const session = data.session;
-      setUserEmail(session?.user.email ?? null);
-      if (session?.user.id) void loadOrCreateWorkspace(session.user.id);
+  useEffect(() => onAuthStateChanged(firebaseAuth, user => {
+    setUserEmail(user?.email ?? null);
+    if (user) void loadOrCreateWorkspace(user.uid, user.displayName);
+    else {
+      setWorkspaceName('Meu workspace');
+      setWorkspaceId(null);
+      setProducts([]);
       setAuthReady(true);
-    });
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUserEmail(session?.user.email ?? null);
-      if (session?.user.id) window.setTimeout(() => void loadOrCreateWorkspace(session.user.id), 0);
-      else { setWorkspaceName('Meu workspace'); setWorkspaceId(null); setProducts([]); }
-    });
-    return () => data.subscription.unsubscribe();
-  }, []);
+    }
+  }), []);
 
   useEffect(() => { if (active === 'Produtos' && workspaceId) void loadProducts(workspaceId); }, [active, workspaceId]);
 
@@ -276,19 +285,28 @@ function App() {
 
   async function authenticate(event: React.FormEvent) {
     event.preventDefault();
-    if (!supabase) return;
     setLoading(true); setAuthMessage('');
-    const result = authMode === 'login'
-      ? await supabase.auth.signInWithPassword({ email, password })
-      : await supabase.auth.signUp({ email, password });
-    setLoading(false);
-    if (result.error) setAuthMessage(result.error.message);
-    else if (authMode === 'signup') setAuthMessage('Conta criada. Verifique seu e-mail para confirmar o acesso.');
+    try {
+      if (authMode === 'login') await signInWithEmailAndPassword(firebaseAuth, email.trim(), password);
+      else await createUserWithEmailAndPassword(firebaseAuth, email.trim(), password);
+      setAuthMessage(authMode === 'signup' ? 'Conta criada com sucesso. Seu workspace será preparado automaticamente.' : '');
+    } catch (error) {
+      const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : '';
+      const messages: Record<string,string> = {
+        'auth/invalid-credential': 'E-mail ou senha incorretos.',
+        'auth/email-already-in-use': 'Este e-mail já possui uma conta. Entre em vez de criar outra.',
+        'auth/weak-password': 'A senha precisa ter pelo menos 6 caracteres.',
+        'auth/invalid-email': 'Informe um endereço de e-mail válido.',
+        'auth/too-many-requests': 'Muitas tentativas. Aguarde alguns minutos e tente novamente.',
+        'auth/network-request-failed': 'Falha de conexão. Verifique sua internet.',
+      };
+      setAuthMessage(messages[code] || (error instanceof Error ? error.message : 'Não foi possível autenticar.'));
+    } finally { setLoading(false); }
   }
-  async function signOut() { if (DEMO_MODE) return; await supabase?.auth.signOut(); setUserEmail(null); }
+  async function handleSignOut() { await signOut(firebaseAuth); }
 
   if (!authReady) return <div className="loading-screen"><div className="brand-mark"><Sparkles /></div><span>Preparando seu workspace…</span></div>;
-  if (!DEMO_MODE && isSupabaseConfigured && !userEmail) return (
+  if (!userEmail) return (
     <main className="auth-screen">
       <div className="auth-panel">
         <Brand />
@@ -301,7 +319,7 @@ function App() {
           <button className="primary-button full" disabled={loading}>{loading ? 'Aguarde…' : authMode === 'login' ? 'Entrar' : 'Criar conta'}</button>
           <button type="button" className="text-button" onClick={() => { setAuthMode(authMode === 'login' ? 'signup' : 'login'); setAuthMessage(''); }}>{authMode === 'login' ? 'Ainda não tem conta? Criar acesso' : 'Já tem uma conta? Entrar'}</button>
         </form>
-        <small className="auth-foot"><ShieldCheck size={14} /> Acesso protegido por autenticação Supabase</small>
+        <small className="auth-foot"><ShieldCheck size={14} /> Acesso protegido por Firebase Authentication</small>
       </div>
       <div className="auth-art"><div className="orbit orbit-one" /><div className="orbit orbit-two" /><div className="art-core"><Sparkles size={42} /></div><div className="art-label label-one"><Activity size={16} /> Tráfego orgânico</div><div className="art-label label-two"><BrainCircuit size={16} /> Inteligência artificial</div><div className="art-label label-three"><Target size={16} /> Conversão</div></div>
     </main>
@@ -309,7 +327,7 @@ function App() {
 
   return (
     <div className="app-shell">
-      {DEMO_MODE && <div role="status" style={{padding:'10px 18px',background:'#3b2d12',color:'#ffe3a3',borderBottom:'1px solid #806326',fontSize:13,textAlign:'center'}}>MODO DEMONSTRAÇÃO TEMPORÁRIO — login desativado. O Supabase está bloqueado por cota; dados, salvamentos, integrações e publicações ficam indisponíveis até a normalização do projeto.</div>}
+      <div role="status" style={{padding:'9px 18px',background:'#12352d',color:'#a8f0d5',borderBottom:'1px solid #286c59',fontSize:12,textAlign:'center'}}>AutoViral Data Core · Firebase conectado para autenticação e Produtos. Outros módulos estão em migração progressiva.</div>
       {workspaceError && <div role="alert" className="product-feedback error">{workspaceError} Atualize a página ou verifique a configuração do banco de dados.</div>}
       {workspaceLoading && <div role="status" className="product-feedback">Preparando seu workspace…</div>}
       {mobileOpen && <button className="mobile-scrim" aria-label="Fechar menu" onClick={() => setMobileOpen(false)} />}
@@ -319,7 +337,7 @@ function App() {
         <nav>
           {Object.entries(grouped).map(([group, items]) => <div className="nav-group" key={group}><span className="nav-label">{group}</span>{items.map(item => { const Icon = item.icon; return <button key={item.label} className={`nav-item ${active === item.label ? 'active' : ''}`} onClick={() => { setActive(item.label); setMobileOpen(false); }}><Icon size={18} /><span>{item.label}</span>{item.label === 'Automações' && <span className="nav-dot" />}</button>; })}</div>)}
         </nav>
-        <div className="sidebar-bottom"><button className="sidebar-help-compact" onClick={() => setActive('Tutorial')}><CircleHelp size={15}/> Ajuda e tutoriais <ArrowUpRight size={13}/></button><div className="profile-row"><div className="profile-avatar">M</div><div className="profile-info"><strong>{DEMO_MODE ? 'Modo demonstração' : userEmail ? userEmail.split('@')[0] : 'Administrador'}</strong><small>{DEMO_MODE ? 'Sem conexão com o banco' : userEmail ?? 'Workspace proprietário'}</small></div>{!DEMO_MODE && <button className="icon-button" title="Sair" onClick={signOut}><LogOut size={16} /></button>}</div></div>
+        <div className="sidebar-bottom"><button className="sidebar-help-compact" onClick={() => setActive('Tutorial')}><CircleHelp size={15}/> Ajuda e tutoriais <ArrowUpRight size={13}/></button><div className="profile-row"><div className="profile-avatar">M</div><div className="profile-info"><strong>{userEmail ? userEmail.split('@')[0] : 'Administrador'}</strong><small>{userEmail ?? 'Workspace proprietário'}</small></div><button className="icon-button" title="Sair" onClick={handleSignOut}><LogOut size={16} /></button></div></div>
       </aside>
       <main className="main-area">
         <header className="topbar"><div className="topbar-left"><button className="icon-button menu-toggle" onClick={() => setMobileOpen(true)}><Menu /></button><div className="breadcrumb">AutoViral AI <span>/</span> <strong>{active}</strong></div></div><div className="topbar-actions"><button className="icon-button" title="Alternar tema claro/escuro" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? <Sun size={17}/> : <Moon size={17}/>}</button><div className="search-box"><Search size={16} /><input placeholder="Buscar recursos..." /><kbd>⌘ K</kbd></div><button className="icon-button notification-button"><Bell size={18} /><i /></button><div className="top-avatar">M</div></div></header>
