@@ -34,7 +34,7 @@ The new database uses workspace-scoped collections:
 - `workspaces/{workspaceId}/distributionTasks/{taskId}`
 - `workspaces/{workspaceId}/auditEvents/{eventId}`
 
-The first Firebase Authentication account owns a workspace whose document ID is the Firebase Auth UID. The initial release currently supports email/password login and signup.
+The first Firebase Authentication account owns a workspace whose document ID is the Firebase Auth UID. The initial release supports email/password login, signup, and Google sign-in.
 
 ## Migration safety
 
