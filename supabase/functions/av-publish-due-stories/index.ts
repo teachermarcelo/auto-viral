@@ -9,7 +9,12 @@ async function decrypt(value:string,secret:string){
 }
 async function graphPost(path:string,params:Record<string,string>,token:string){
  const response=await fetch("https://graph.facebook.com/v24.0/"+path,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:new URLSearchParams({...params,access_token:token})});
- const data=await response.json();if(!response.ok||data.error)throw new Error(data.error?.message||"Meta recusou a publicação.");return data;
+ const data=await response.json();
+ if(!response.ok||data.error){
+  const error=new Error(data.error?.message||"Meta recusou a publicação.") as Error & {status?:number;metaCode?:number};
+  error.status=response.status;error.metaCode=Number(data.error?.code||0);throw error;
+ }
+ return data;
 }
 async function publish(post:any,admin:any,appSecret:string){
  const {data:connection,error}=await admin.from("av_meta_connections").select("instagram_account_id,page_token_ciphertext,status").eq("workspace_id",post.workspace_id).eq("status","connected").maybeSingle();
@@ -43,23 +48,51 @@ Deno.serve(async(req:Request)=>{
  const admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
  const {data:secret}=await admin.from("av_meta_scheduler_secrets").select("id").eq("token_hash",hash).eq("active",true).maybeSingle();
  if(!secret)return json({error:"Unauthorized"},401);
- const now=new Date().toISOString();
- const {data:due,error}=await admin.from("av_campaign_posts").select("id,workspace_id,campaign_id,channel,status,copy_snapshot,media_url,destination_url,scheduled_at").eq("channel","instagram_story").eq("status","scheduled").lte("scheduled_at",now).order("scheduled_at",{ascending:true}).limit(5);
+ const now=new Date(),nowIso=now.toISOString();
+ const {data:due,error}=await admin.from("av_campaign_posts").select("id,workspace_id,campaign_id,channel,status,copy_snapshot,media_url,destination_url,scheduled_at").eq("channel","instagram_story").eq("status","scheduled").lte("scheduled_at",nowIso).order("scheduled_at",{ascending:true}).limit(50);
  if(error)return json({error:"Falha ao consultar a fila"},500);
+ if(!due?.length)return json({ok:true,processed:0,reason:"Fila vazia"});
+ // Work one workspace per invocation so each workspace has an independent policy and cooldown.
+ const workspaceId=due[0].workspace_id;
+ const {data:policy}=await admin.from("av_distribution_settings").select("enabled,paused,pause_reason,batch_size,pause_minutes,next_batch_at").eq("workspace_id",workspaceId).maybeSingle();
+ if(policy && !policy.enabled)return json({ok:true,processed:0,reason:"Agente desabilitado",workspace_id:workspaceId});
+ if(policy?.paused)return json({ok:true,processed:0,reason:"Fila pausada para revisão",pause_reason:policy.pause_reason,workspace_id:workspaceId});
+ if(policy?.next_batch_at && new Date(policy.next_batch_at)>now)return json({ok:true,processed:0,reason:"Pausa operacional em andamento",next_batch_at:policy.next_batch_at,workspace_id:workspaceId});
+ const batch=(due||[]).filter(p=>p.workspace_id===workspaceId).slice(0,Math.max(1,Math.min(10,policy?.batch_size||5)));
  const results=[];
- for(const post of due||[]){
-  const {data:claimed}=await admin.from("av_campaign_posts").update({status:"publishing",execution_note:"Reservado pelo agendador AutoViral."}).eq("id",post.id).eq("status","scheduled").select("id").maybeSingle();
+ await admin.from("av_distribution_events").insert({workspace_id:workspaceId,event_type:"batch_started",channel:"instagram_story",details:{batch_size:batch.length,pause_minutes:policy?.pause_minutes||0}});
+ for(const post of batch){
+  const {data:claimed}=await admin.from("av_campaign_posts").update({status:"publishing",execution_note:"Reservado pelo agendador oficial AutoViral."}).eq("id",post.id).eq("status","scheduled").select("id").maybeSingle();
   if(!claimed)continue;
   try{
    const mediaId=await publish(post,admin,appSecret);
-   const {error:updateError}=await admin.from("av_campaign_posts").update({status:"published",published_at:new Date().toISOString(),execution_note:"Story publicado automaticamente pela API oficial do Instagram. Media ID: "+mediaId}).eq("id",post.id);
+   const {error:updateError}=await admin.from("av_campaign_posts").update({status:"published",published_at:new Date().toISOString(),execution_note:"Story publicado pela API oficial do Instagram. Media ID: "+mediaId}).eq("id",post.id);
    if(updateError)throw updateError;
    results.push({post_id:post.id,status:"published"});
+   await admin.from("av_distribution_events").insert({workspace_id:workspaceId,event_type:"publish_succeeded",channel:"instagram_story",campaign_id:post.campaign_id,external_reference:mediaId,details:{post_id:post.id}});
   }catch(e){
    const message=e instanceof Error?e.message:"Falha desconhecida";
+   const status=(e as any)?.status||0,code=(e as any)?.metaCode||0;
+   const rateLimited=status===429||/rate.?limit|too many calls|request limit/i.test(message)||[4,17,32,613].includes(code);
+   const permissionError=status===403||[10,200,190].includes(code)||/permission|access token|oauth|not authorized/i.test(message);
    await admin.from("av_campaign_posts").update({status:"failed",execution_note:message.slice(0,500)}).eq("id",post.id);
    results.push({post_id:post.id,status:"failed",error:message.slice(0,200)});
+   await admin.from("av_distribution_events").insert({workspace_id:workspaceId,event_type:rateLimited?"rate_limited":permissionError?"permission_error":"publish_failed",channel:"instagram_story",campaign_id:post.campaign_id,details:{post_id:post.id,http_status:status,meta_code:code,message:message.slice(0,300)}});
+   if(rateLimited||permissionError){
+    const reason=rateLimited?"Meta retornou limite de requisições (HTTP 429/código equivalente). Revisão manual necessária.":"Erro de permissão ou autenticação Meta. Verifique permissões e token antes de retomar.";
+    await admin.from("av_distribution_settings").update({paused:true,pause_reason:reason,enabled:false}).eq("workspace_id",workspaceId);
+    await admin.from("av_distribution_events").insert({workspace_id:workspaceId,event_type:"paused",channel:"instagram_story",details:{reason,post_id:post.id}});
+    break;
+   }
   }
  }
- return json({ok:true,processed:results.length,results});
+ const processed=results.length;
+ if(processed>0){
+  const pauseMinutes=policy?.pause_minutes||0;
+  const nextBatchAt=pauseMinutes>0?new Date(Date.now()+pauseMinutes*60_000).toISOString():null;
+  if(policy)await admin.from("av_distribution_settings").update({last_batch_at:new Date().toISOString(),next_batch_at:nextBatchAt}).eq("workspace_id",workspaceId);
+  await admin.from("av_distribution_events").insert({workspace_id:workspaceId,event_type:"batch_completed",channel:"instagram_story",details:{processed,published:results.filter(r=>r.status==="published").length,failed:results.filter(r=>r.status==="failed").length,next_batch_at:nextBatchAt}});
+  if(nextBatchAt)await admin.from("av_distribution_events").insert({workspace_id:workspaceId,event_type:"cooldown_started",channel:"instagram_story",details:{next_batch_at:nextBatchAt,pause_minutes:pauseMinutes}});
+ }
+ return json({ok:true,workspace_id:workspaceId,processed,results,next_batch_at:policy&&processed>0?new Date(Date.now()+(policy.pause_minutes||0)*60_000).toISOString():null});
 });
