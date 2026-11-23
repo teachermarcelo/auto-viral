@@ -1,6 +1,10 @@
 import { firebaseAuth } from './firebase';
 
-const META_API_URL = (import.meta.env.VITE_META_API_URL || '').replace(/\/$/, '');
+// Public Worker endpoint. Override with VITE_META_API_URL when using a different
+// Cloudflare workers.dev/custom-domain URL. No Meta secret belongs in the browser.
+const META_API_URL = (
+  import.meta.env.VITE_META_API_URL || 'https://autoviral-meta-api.marcellospropaganda.workers.dev'
+).replace(/\/$/, '');
 
 export async function invokeMetaApi<T = any>(path: string, body: Record<string, unknown> = {}): Promise<{ data: T | null; error: Error | null }> {
   if (!META_API_URL) return { data: null, error: new Error('Backend Meta ainda não configurado. Aguarde a publicação do Worker seguro.') };
