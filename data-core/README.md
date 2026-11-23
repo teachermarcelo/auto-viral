@@ -1,35 +1,50 @@
 # AutoViral Data Core
 
-Independent PostgreSQL + API foundation. This directory is isolated from the existing Vite app and Supabase integration.
+## Architecture decision
 
-## Current phase
+**Firebase is the primary data platform for AutoViral AI.** The production web app authenticates with Firebase Authentication and stores workspace-scoped operational data in Cloud Firestore.
 
-- Neon PostgreSQL project created by the owner.
-- API scaffold targets Cloudflare Workers.
-- Database schema is versioned in `migrations/`.
-- No production app module has been switched to this API.
-- Supabase remains the legacy source until a verified export/import and reconciliation are completed.
+- Firebase project: `autoviral-data-core`
+- Web client: `src/lib/firebase.ts`
+- Authentication and workspace provisioning: `src/App.tsx`
+- Firestore compatibility adapter for existing modules: `src/lib/firestoreCompat.ts`
+- Workspace isolation rules: `firestore.rules`
+- Firebase setup and migration notes: `docs/FIREBASE_SETUP.md`
 
-## Local development
+The app uses Firebase Authentication (email/password and Google) and Firestore. The Firebase Spark plan is the cost-first target. Do not enable paid Firebase products or upgrade billing without the owner's explicit decision.
 
-1. Install Node.js 22 or later.
-2. From `data-core/api`, run `npm install`.
-3. Set `DATABASE_URL` as a local secret (never commit it).
-4. Run the migration manually against a disposable development database:
-   `psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f ../migrations/0001_core_foundation.sql`
-5. Run `npm run dev` to start the Worker locally.
+## Role of other services
 
-## Cloudflare deployment
+- **GitHub Pages** hosts the web frontend.
+- **Cloudflare Workers** are optional secure server-side endpoints for integrations that cannot safely run in the browser (for example, OAuth callbacks, webhooks, AI provider secrets, and publishing APIs). They are not the primary database and must not be required for Firebase login or ordinary Firestore CRUD.
+- The `data-core/api` Neon/Cloudflare scaffold is legacy/experimental infrastructure. It is not on the critical path for the Firebase-first app. Do not deploy it or require a `DATABASE_URL` for the app's core operation.
+- Supabase/Neon legacy data must remain intact until a separate, verified export/import, reconciliation, rollback plan, and explicit owner approval. No automatic destructive migration is authorized.
 
-Configure Worker secret `DATABASE_URL` in Cloudflare. Set `CORS_ORIGIN` to the exact deployed frontend origin. Deploy only after the database migration and security review.
+## Current Firebase data layout
 
-## Security boundary
+Operational records are stored under the authenticated workspace:
 
-The first endpoint is health-only. Do not add public CRUD endpoints until authentication and workspace authorization are implemented and tested. Never expose `DATABASE_URL` in Vite `VITE_*` variables, browser code, GitHub commits, or client-side storage.
+- `workspaces/{uid}`
+- `workspaces/{uid}/members/{uid}`
+- `workspaces/{uid}/products/{productId}`
+- `workspaces/{uid}/campaigns/{campaignId}`
+- Other module collections are mapped in `src/lib/firestoreCompat.ts`.
 
-## Migration policy
+The compatibility adapter keeps the existing module query interface while modules are migrated incrementally. It currently reads each workspace collection and filters/sorts some results client-side; monitor Firestore usage and migrate high-volume queries to indexed Firestore queries before scaling.
 
-- Take and verify a backup before any production copy.
-- Preserve source IDs and timestamps.
-- Use idempotent import batches and compare row counts/checksums.
-- Keep the Supabase project and its data intact until owner approval after a rollback window.
+## Required production checks
+
+1. Confirm Email/Password and Google providers are enabled in Firebase Authentication.
+2. Confirm `teachermarcelo.github.io` is an authorized Firebase Authentication domain.
+3. Publish the repository's `firestore.rules` to the `autoviral-data-core` project.
+4. Test signup, login, logout, workspace creation, and CRUD for each module.
+5. Test that a second account cannot read or modify the first account's workspace.
+6. Keep product images on public HTTPS URLs while using Spark; Firebase Storage uploads are not enabled in this cost-first setup.
+7. Verify that any feature requiring a server-side integration reports a clear unavailable status until its secure Worker endpoint is deployed.
+
+## Data safety
+
+- Do not delete, overwrite, or migrate legacy Supabase/Neon records as part of routine deployment.
+- Do not commit service-account JSON, Admin SDK private keys, OAuth client secrets, webhook secrets, or database connection strings.
+- Never weaken Firestore rules to public read/write.
+- Back up and reconcile data before any future migration; preserve source IDs and timestamps and keep a rollback window.
