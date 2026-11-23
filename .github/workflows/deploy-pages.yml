@@ -1,11 +1,11 @@
 name: Deploy AutoViral AI to GitHub Pages
 
 on:
+  # Production Pages is deployed only from the stable branch. Feature branches
+  # are validated by CI but must not request the protected github-pages environment.
   push:
     branches:
       - feat/phase-1-foundation
-      - feat/platform-migration-chrome-extension
-      - feat/autoviral-data-core
   workflow_dispatch:
 
 permissions:
@@ -39,9 +39,7 @@ jobs:
           path: ./dist
 
   deploy:
-    # The github-pages environment is protected for the stable Pages branch.
-    # Feature branches still run the build, but must not attempt a production deploy.
-    if: github.ref == 'refs/heads/feat/phase-1-foundation' || github.ref == 'refs/heads/feat/platform-migration-chrome-extension' || github.ref == 'refs/heads/feat/autoviral-data-core'
+    if: github.ref == 'refs/heads/feat/phase-1-foundation'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
