@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AutoViral AI — Robot Assistido",
-  "version": "0.4.5",
+  "version": "0.4.6",
   "description": "Executa a fila assistida do AutoViral, abrindo grupos no horário e preparando texto, imagem e link rastreável para revisão manual.",
   "permissions": [
     "activeTab",
