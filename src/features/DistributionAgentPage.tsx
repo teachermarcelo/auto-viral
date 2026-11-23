@@ -26,6 +26,14 @@ export function DistributionAgentPage({ workspaceId }: { workspaceId: string | n
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [metaAccounts, setMetaAccounts] = useState<Array<{id:string;name:string;currency?:string}>>([]);
+  const [metaAccountId, setMetaAccountId] = useState('');
+  const [metaDatePreset, setMetaDatePreset] = useState('last_7d');
+  const [metaLevel, setMetaLevel] = useState('ad');
+  const [metaInsights, setMetaInsights] = useState<Array<Record<string, any>>>([]);
+  const [metaLoading, setMetaLoading] = useState(false);
+  const [metaError, setMetaError] = useState('');
+  const [metaLoaded, setMetaLoaded] = useState(false);
 
   const load = useCallback(async () => {
     if (!supabase || !workspaceId) { setLoading(false); return; }
@@ -64,6 +72,30 @@ export function DistributionAgentPage({ workspaceId }: { workspaceId: string | n
     return { ...link, clicks: related.filter(e => e.event_type === 'click').length, leads: related.filter(e => e.event_type === 'lead').length, sales: related.filter(e => e.event_type === 'sale').length };
   }).sort((a,b) => b.clicks-a.clicks), [links, events]);
 
+  async function loadMetaAccounts() {
+    if (!supabase || !workspaceId) return;
+    setMetaLoading(true); setMetaError('');
+    const { data, error: invokeError } = await supabase.functions.invoke('av-meta-ads', { body: { action: 'list_accounts', workspace_id: workspaceId } });
+    if (invokeError || data?.error) setMetaError(data?.message || invokeError?.message || 'Não foi possível consultar as contas Meta.');
+    else {
+      const accounts = (data?.ad_accounts || []) as Array<{id:string;name:string;currency?:string}>;
+      setMetaAccounts(accounts);
+      if (!metaAccountId && accounts.length) setMetaAccountId(accounts[0].id);
+      if (!accounts.length) setMetaError('Nenhuma conta de anúncios autorizada foi encontrada nesta conexão Meta.');
+    }
+    setMetaLoading(false);
+  }
+
+  async function loadMetaInsights() {
+    if (!supabase || !workspaceId || !metaAccountId) return;
+    setMetaLoading(true); setMetaError(''); setMetaLoaded(false);
+    const { data, error: invokeError } = await supabase.functions.invoke('av-meta-ads', { body: { action: 'get_insights', workspace_id: workspaceId, ad_account_id: metaAccountId, date_preset: metaDatePreset, level: metaLevel } });
+    if (invokeError || data?.error) setMetaError(data?.message || invokeError?.message || 'Falha ao buscar Insights da Meta. Verifique ads_read.');
+    else { setMetaInsights(data?.insights || []); setMetaLoaded(true); }
+    setMetaLoading(false);
+  }
+
+  useEffect(() => { if (workspaceId) void loadMetaAccounts(); }, [workspaceId]);
   async function savePolicy() {
     if (!supabase || !workspaceId) return;
     setSaving(true); setMessage(''); setError('');
@@ -87,6 +119,18 @@ export function DistributionAgentPage({ workspaceId }: { workspaceId: string | n
     <section className="av-page-heading">
       <div><span className="av-kicker">AUTO VIRAL · GROWTH ENGINE</span><h1>Robô de distribuição</h1><p>Organize a distribuição autorizada, acompanhe os resultados e identifique quais links e campanhas merecem atenção.</p></div>
       <button className="av-button secondary" onClick={() => void load()}><RefreshCw size={15}/> Atualizar métricas</button>
+    </section>
+    <section className="av-panel" style={{padding:20,marginBottom:18}}>
+      <div className="av-panel-title"><div><h2><BarChart3 size={19}/> Meta Performance Intelligence</h2><p>Insights reais da conta de anúncios conectada. Esta visão mede campanhas pagas, não alcance orgânico.</p></div><span className="av-status">META API</span></div>
+      <div className="av-agent-grid">
+        <label className="av-field">Conta de anúncios<select value={metaAccountId} onChange={e=>setMetaAccountId(e.target.value)}><option value="">Selecione uma conta</option>{metaAccounts.map(a=><option key={a.id} value={a.id}>{a.name} · {a.id} {a.currency ? "· "+a.currency : ""}</option>)}</select></label>
+        <label className="av-field">Período<select value={metaDatePreset} onChange={e=>setMetaDatePreset(e.target.value)}><option value="today">Hoje</option><option value="yesterday">Ontem</option><option value="last_7d">Últimos 7 dias</option><option value="last_14d">Últimos 14 dias</option><option value="last_30d">Últimos 30 dias</option><option value="this_month">Este mês</option><option value="last_month">Mês passado</option></select></label>
+        <label className="av-field">Detalhamento<select value={metaLevel} onChange={e=>setMetaLevel(e.target.value)}><option value="ad">Por anúncio / criativo</option><option value="adset">Por conjunto</option><option value="campaign">Por campanha</option></select></label>
+      </div>
+      <div style={{display:"flex",gap:10,marginTop:14,alignItems:"center",flexWrap:"wrap"}}><button className="av-button secondary" disabled={metaLoading} onClick={()=>void loadMetaAccounts()}><RefreshCw size={15}/> Atualizar contas</button><button className="av-button primary" disabled={metaLoading||!metaAccountId} onClick={()=>void loadMetaInsights()}>{metaLoading?"Consultando…":"Buscar Insights da Meta"}</button>{metaLoaded&&<span className="av-feedback">Dados recebidos da Marketing API</span>}</div>
+      {metaError&&<p className="av-feedback error" role="alert" style={{marginTop:12}}>{metaError}</p>}
+      {metaLoaded && <div className="av-table-wrap"><table className="av-table"><thead><tr><th>Anúncio / criativo</th><th>Impressões</th><th>Alcance</th><th>Cliques</th><th>CTR</th><th>Gasto</th><th>CPC</th></tr></thead><tbody>{metaInsights.map((row,i)=><tr key={String(row.ad_id||row.adset_id||row.campaign_id||i)}><td><strong>{row.ad_name||row.adset_name||row.campaign_name||"Sem nome"}</strong><small>{row.campaign_name||row.adset_name||row.ad_id||""}</small></td><td>{Number(row.impressions||0).toLocaleString("pt-BR")}</td><td>{Number(row.reach||0).toLocaleString("pt-BR")}</td><td>{Number(row.inline_link_clicks||row.clicks||0).toLocaleString("pt-BR")}</td><td>{Number(row.ctr||0).toLocaleString("pt-BR",{maximumFractionDigits:2})}%</td><td>{row.spend??"—"}</td><td>{row.cpc??"—"}</td></tr>)}</tbody></table>{metaInsights.length===0&&<p className="av-empty">A Meta não retornou anúncios com dados neste período.</p>}</div>}
+      <div className="av-safety-note"><ShieldCheck size={18}/><div><strong>Transparência das métricas</strong><span>Impressões, alcance, cliques, CTR, gasto e CPC vêm dos Insights de anúncios da Meta e exigem a permissão ads_read. Para Insights orgânicos de Instagram/Facebook (Stories, Reels e publicações), será necessária uma integração separada com permissões e endpoints específicos.</span></div></div>
     </section>
     <section className="av-panel" style={{padding:20,marginBottom:18}}>
       <div className="av-panel-title"><div><h2><Bot size={19}/> Agente de distribuição</h2><p>Configuração operacional por workspace</p></div><span className={settings.paused ? 'av-status' : settings.enabled ? 'av-status success' : 'av-status'}>{settings.paused ? 'PAUSADO PARA REVISÃO' : settings.enabled ? 'POLÍTICA HABILITADA' : 'EM PAUSA'}</span></div>
