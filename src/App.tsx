@@ -8,6 +8,7 @@ import {
 import { createUserWithEmailAndPassword, GoogleAuthProvider, onAuthStateChanged, signInWithEmailAndPassword, signInWithPopup, signOut } from 'firebase/auth';
 import { collection, deleteDoc, doc, getDoc, getDocs, orderBy, query, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { firebaseAuth, firestore } from './lib/firebase';
+import { supabase } from './lib/supabase';
 import { workspaceCollectionPath, workspaceMemberPath, workspacePath } from './lib/firestorePaths';
 import { CampaignsPage, AudiencesPage, PostsPage, CRMPage, OpportunitiesPage, AnalyticsPage, IntegrationsPage } from './features/OperationalPages';
 import { GroupCommandCenter } from './features/GroupCommandCenter';
@@ -83,12 +84,6 @@ const sections: { label: Section; icon: typeof LayoutDashboard; group: string }[
   { label: 'Tutorial', icon: BookOpen, group: 'FERRAMENTAS' },
   { label: 'Integrações', icon: Settings2, group: 'SISTEMA' },
 ];
-const metrics = [
-  { label: 'Visitantes orgânicos', value: '—', change: 'Aguardando conexão', icon: Users, tone: 'cyan' },
-  { label: 'Leads capturados', value: '—', change: 'Aguardando conexão', icon: Target, tone: 'purple' },
-  { label: 'Cliques rastreados', value: '—', change: 'Aguardando conexão', icon: Activity, tone: 'green' },
-  { label: 'Vendas atribuídas', value: '—', change: 'Aguardando conexão', icon: BarChart3, tone: 'orange' },
-];
 
 function App() {
   const [active, setActive] = useState<Section>('Visão geral');
@@ -115,6 +110,7 @@ function App() {
   const [productForm, setProductForm] = useState<ProductForm>(blankProduct);
   const [savingProduct, setSavingProduct] = useState(false);
   const [productImageFile, setProductImageFile] = useState<File | null>(null);
+  const [overviewStats, setOverviewStats] = useState({ clicks: 0, leads: 0, sales: 0, campaigns: 0, loaded: false, error: '' });
 
   async function loadOrCreateWorkspace(uid: string, displayName?: string | null) {
     setWorkspaceError('');
@@ -266,6 +262,35 @@ function App() {
   }), []);
 
   useEffect(() => { if (active === 'Produtos' && workspaceId) void loadProducts(workspaceId); }, [active, workspaceId]);
+  useEffect(() => {
+    if (active !== 'Visão geral' || !workspaceId) return;
+    let cancelled = false;
+    setOverviewStats(current => ({ ...current, loaded: false, error: '' }));
+    void Promise.all([
+      supabase.from('av_tracking_events').select('id,event_type').limit(5000),
+      supabase.from('av_leads').select('id').limit(5000),
+      supabase.from('av_sales').select('id,order_status').limit(5000),
+      supabase.from('av_campaigns').select('id,status').limit(5000),
+    ]).then(([events, leads, sales, campaigns]) => {
+      if (cancelled) return;
+      const failures = [events.error, leads.error, sales.error, campaigns.error].filter(Boolean);
+      if (failures.length) {
+        setOverviewStats(current => ({ ...current, loaded: true, error: failures.map(item => item?.message).join(' · ') }));
+        return;
+      }
+      setOverviewStats({
+        clicks: (events.data ?? []).filter((row: any) => row.event_type === 'click').length,
+        leads: (leads.data ?? []).length,
+        sales: (sales.data ?? []).filter((row: any) => ['paid', 'approved'].includes(row.order_status)).length,
+        campaigns: (campaigns.data ?? []).filter((row: any) => ['active', 'running'].includes(row.status)).length,
+        loaded: true,
+        error: '',
+      });
+    }).catch(error => {
+      if (!cancelled) setOverviewStats(current => ({ ...current, loaded: true, error: error instanceof Error ? error.message : 'Falha ao consultar o Firestore.' }));
+    });
+    return () => { cancelled = true; };
+  }, [active, workspaceId]);
 
   const grouped = useMemo(() => sections.reduce<Record<string, typeof sections>>((acc, item) => {
     (acc[item.group] ??= []).push(item); return acc;
@@ -352,8 +377,13 @@ function App() {
             />
           ) : active === 'Campanhas' ? <CampaignsPage workspaceId={workspaceId} /> : (active === 'Grupos e oportunidades' || active === 'Grupos mapeados') ? <GroupCommandCenter workspaceId={workspaceId} initialTab={active === 'Grupos mapeados' ? 'recent' : 'all'} /> : <>
             <section className="welcome-row"><div><div className="eyebrow"><span className="live-dot" /> WORKSPACE EM CONFIGURAÇÃO</div><h1>{active === 'Visão geral' ? 'Seu crescimento começa aqui.' : active}</h1><p>{active === 'Visão geral' ? 'Uma visão unificada da sua operação de tráfego, audiência e vendas.' : 'Organize sua operação e prepare o próximo passo do crescimento orgânico.'}</p></div><button className="primary-button" onClick={() => setActive('Produtos')}><Plus size={17} /> Novo projeto</button></section>
-            <section className="setup-banner"><div className="banner-icon"><Sparkles size={21} /></div><div className="banner-copy"><strong>Bem-vindo ao AutoViral AI</strong><span>Seu ambiente visual está pronto. Conecte as fontes de dados para ativar métricas reais e recursos operacionais.</span></div><span className="setup-status">CONFIGURAÇÃO INICIAL</span></section>
-            <section className="metric-grid">{metrics.map((m) => { const Icon = m.icon; return <article className="metric-card" key={m.label}><div className="metric-head"><span>{m.label}</span><span className={`metric-icon ${m.tone}`}><Icon size={18} /></span></div><strong className="metric-value">{m.value}</strong><div className="metric-foot"><span className="muted-dot" />{m.change}</div></article>; })}</section>
+            <section className="setup-banner"><div className="banner-icon"><Sparkles size={21} /></div><div className="banner-copy"><strong>Bem-vindo ao AutoViral AI</strong><span>Os indicadores consultam os registros reais do seu workspace no Cloud Firestore. Integrações externas aparecem separadamente enquanto aguardam credenciais e endpoints seguros.</span></div><span className="setup-status">CONFIGURAÇÃO INICIAL</span></section>
+            <section className="metric-grid">{[
+              { label: 'Cliques rastreados', value: overviewStats.loaded ? String(overviewStats.clicks) : '—', change: overviewStats.loaded ? 'Eventos reais no Firestore' : 'Consultando Firestore', icon: Activity, tone: 'green' },
+              { label: 'Leads capturados', value: overviewStats.loaded ? String(overviewStats.leads) : '—', change: overviewStats.loaded ? 'Registros reais no Firestore' : 'Consultando Firestore', icon: Target, tone: 'purple' },
+              { label: 'Vendas confirmadas', value: overviewStats.loaded ? String(overviewStats.sales) : '—', change: overviewStats.loaded ? 'Pedidos pagos/aprovados registrados' : 'Consultando Firestore', icon: BarChart3, tone: 'orange' },
+              { label: 'Campanhas ativas', value: overviewStats.loaded ? String(overviewStats.campaigns) : '—', change: overviewStats.loaded ? 'Status ativo no Firestore' : 'Consultando Firestore', icon: Megaphone, tone: 'cyan' },
+            ].map((m) => { const Icon = m.icon; return <article className="metric-card" key={m.label}><div className="metric-head"><span>{m.label}</span><span className={`metric-icon ${m.tone}`}><Icon size={18} /></span></div><strong className="metric-value">{m.value}</strong><div className="metric-foot"><span className="muted-dot" />{overviewStats.error || m.change}</div></article>; })}</section>
             <div className="content-grid"><section className="panel performance-panel"><div className="panel-heading"><div><span className="panel-kicker">VISÃO DA OPERAÇÃO</span><h2>Desempenho dos canais</h2></div><button className="subtle-button">Últimos 30 dias <ChevronDown size={15} /></button></div><div className="chart-placeholder"><div className="chart-lines"><i /><i /><i /><i /></div><div className="chart-empty"><div className="chart-empty-icon"><BarChart3 size={23} /></div><strong>Seus dados aparecerão aqui</strong><span>Conecte canais e rastreamento para visualizar o desempenho.</span></div><div className="chart-x"><span>01</span><span>07</span><span>14</span><span>21</span><span>30</span></div></div></section>
               <section className="panel channels-panel"><div className="panel-heading"><div><span className="panel-kicker">ECOSSISTEMA</span><h2>Canais conectados</h2></div><button className="icon-button" title="Gerenciar canais" onClick={() => setActive('Integrações')}><Plus size={17} /></button></div><div className="channel-list">{[{name:'Instagram',desc:'Conteúdo e comunidade',letter:'ig',tone:'pink'},{name:'Facebook',desc:'Páginas e grupos',letter:'f',tone:'blue'},{name:'YouTube',desc:'Vídeos e audiência',letter:'▶',tone:'red'},{name:'Pinterest',desc:'Pins e descoberta',letter:'p',tone:'coral'},{name:'TikTok',desc:'Vídeos curtos',letter:'♪',tone:'dark'}].map(c=><div className="channel-row" key={c.name}><span className={`channel-logo ${c.tone}`}>{c.letter}</span><span className="channel-name"><strong>{c.name}</strong><small>{c.desc}</small></span><span className="disconnected">Não conectado</span></div>)}</div><button className="panel-link" onClick={() => setActive('Integrações')}>Gerenciar integrações <ArrowUpRight size={15} /></button></section></div>
             <section className="panel quickstart"><div className="panel-heading"><div><span className="panel-kicker">PRÓXIMOS PASSOS</span><h2>Monte sua operação</h2></div><span className="progress-label">0 de 4 concluídos</span></div><div className="progress-track"><i /></div><div className="steps-grid">{[{icon:Package,title:'Cadastre seu produto',desc:'Defina o que você quer divulgar.',action:'Abrir produtos',section:'Produtos' as Section},{icon:BrainCircuit,title:'Analise seu mercado',desc:'Encontre oportunidades e públicos.',action:'Explorar inteligência',section:'Inteligência de mercado' as Section},{icon:FileImage,title:'Crie seu primeiro conteúdo',desc:'Prepare uma peça para seus canais.',action:'Abrir estúdio',section:'Estúdio criativo' as Section},{icon:Link2,title:'Configure seu rastreamento',desc:'Prepare a atribuição de resultados.',action:'Ver integrações',section:'Integrações' as Section}].map((s,i)=>{const Icon=s.icon;return <article className="step-card" key={s.title}><div className="step-number">0{i+1}</div><div className="step-icon"><Icon size={19}/></div><strong>{s.title}</strong><span>{s.desc}</span><button onClick={()=>setActive(s.section)}>{s.action} <ArrowUpRight size={14}/></button></article>;})}</div></section>
