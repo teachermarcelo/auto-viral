@@ -61,8 +61,8 @@ async function readFirebaseIdentity(request: Request, env: Env): Promise<Firebas
   if (claims.aud !== env.FIREBASE_PROJECT_ID || claims.iss !== `https://securetoken.google.com/${env.FIREBASE_PROJECT_ID}` || !claims.sub || claims.sub.length > 128 || !claims.exp || claims.exp <= now || !claims.iat || claims.iat > now + 300) throw new Error("invalid_firebase_token");
   const keyResponse = await fetch("https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com", { cf: { cacheTtl: 3600, cacheEverything: true } } as RequestInit);
   if (!keyResponse.ok) throw new Error("firebase_key_lookup_failed");
-  const keySet = await keyResponse.json() as { keys?: JsonWebKey[] & { kid?: string }[] };
-  const jwk = keySet.keys?.find(key => (key as JsonWebKey & { kid?: string }).kid === headerData.kid);
+  const keySet = await keyResponse.json() as { keys?: Array<JsonWebKey & { kid?: string }> };
+  const jwk = keySet.keys?.find(key => key.kid === headerData.kid);
   if (!jwk) throw new Error("firebase_signing_key_not_found");
   const publicKey = await crypto.subtle.importKey("jwk", jwk, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["verify"]);
   const signingInput = encoder.encode(parts[0] + "." + parts[1]);
@@ -84,7 +84,7 @@ async function decryptToken(record: StoredConnection, env: Env) {
 }
 async function graph(env: Env, path: string, accessToken: string, init: RequestInit = {}) {
   const url = new URL(`https://graph.facebook.com/${env.META_GRAPH_VERSION}/${path.replace(/^\//, "")}`);
-  if (init.method !== "POST") url.searchParams.set("access_token", accessToken);
+  url.searchParams.set("access_token", accessToken);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), GRAPH_TIMEOUT_MS);
   try {
