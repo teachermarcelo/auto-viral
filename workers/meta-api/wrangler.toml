@@ -6,7 +6,7 @@ compatibility_date = "2026-11-23"
 # Set secrets through Wrangler/Cloudflare dashboard; never commit their values.
 [[kv_namespaces]]
 binding = "META_CONNECTIONS"
-id = "REPLACE_WITH_KV_NAMESPACE_ID"
+id = "a7ef821566564e5b8f57e84ba1b9da3b"
 
 [vars]
 APP_ORIGIN = "https://teachermarcelo.github.io"
