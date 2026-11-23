@@ -91,6 +91,16 @@ Deno.serve(async (req: Request) => {
       return reply({ status: "OK", ad_account: selectedAccount, campaigns: payload.data || [], source: "meta_marketing_api" });
     }
 
+    if (action === "get_ad_creatives") {
+      const url = new URL(`${graph}/${accountPath}/ads`);
+      url.searchParams.set("fields", "id,name,status,effective_status,creative{id,name,title,body,thumbnail_url,image_url,object_story_spec}");
+      url.searchParams.set("limit", "200");
+      const response = await fetch(url, { headers: { Authorization: "Bearer " + token } });
+      const payload = await response.json();
+      if (!response.ok) return reply({ error: "META_CREATIVES_ERROR", message: payload?.error?.message || "Falha ao consultar criativos da Meta.", code: payload?.error?.code ?? null }, 502);
+      return reply({ status: "OK", ad_account: selectedAccount, ads: payload.data || [], paging: payload.paging || null, source: "meta_marketing_api" });
+    }
+
     if (action === "get_insights") {
       const datePreset = ["today","yesterday","last_7d","last_14d","last_30d","this_month","last_month"].includes(String(body.date_preset)) ? String(body.date_preset) : "last_7d";
       const level = ["campaign","adset","ad"].includes(String(body.level)) ? String(body.level) : "ad";
