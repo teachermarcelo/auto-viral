@@ -77,6 +77,6 @@ O Worker ainda precisa passar pelo CI de tipo e por teste real de OAuth/API. Nã
 - Back up and reconcile data before any future migration; preserve source IDs and timestamps and keep a rollback window.
 
 
-## Known migration blocker — Chrome extension
+## Chrome extension — Firebase bridge implemented, runtime validation pending
 
-The current `chrome-extension/` implementation is still coupled to the legacy Supabase project: `background.js` calls Supabase Auth/REST endpoints and `platform-bridge.js` extracts the Supabase browser session. It is **not Firebase-compatible yet**, even though the web app's primary data path is Firebase. Keep the legacy Supabase project intact until the extension is migrated and tested. Required follow-up: replace session bridging with Firebase Authentication, write community records to `workspaces/{uid}/communities` under the existing Firestore rules, and verify duplicate handling plus cross-workspace isolation. Do not claim extension-to-Firebase synchronization is operational before those tests pass.
+The extension's current `chrome-extension/background.js` uses Firebase ID tokens received from the app, stores the short-lived ID token in `chrome.storage.session`, and writes discovered communities to `workspaces/{uid}/communities` through Firestore REST. The platform bridge forwards Firebase token/sign-out messages from the authenticated app. Keep the Supabase legacy project intact until the end-to-end extension tests pass. Required validation: sign in, sync a visible group, confirm duplicate suppression, and verify a second Firebase account cannot read or write the first account's workspace. Do not claim the browser runtime integration is production-validated before those tests pass.
