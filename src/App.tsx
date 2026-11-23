@@ -9,8 +9,9 @@ import { isSupabaseConfigured, supabase } from './lib/supabase';
 import { CampaignsPage, AudiencesPage, PostsPage, CRMPage, OpportunitiesPage, AnalyticsPage, IntegrationsPage } from './features/OperationalPages';
 import { GroupCommandCenter } from './features/GroupCommandCenter';
 import { GrowthToolsPage } from './features/GrowthToolsPage';
+import { DistributionAgentPage } from './features/DistributionAgentPage';
 
-type Section = 'Visão geral' | 'Produtos' | 'Campanhas' | 'Grupos e oportunidades' | 'Grupos mapeados' | 'Inteligência de mercado' | 'Radar de audiência' | 'Central de tráfego' | 'Estúdio criativo' | 'CRM e vendas' | 'Funis e páginas' | 'Automações' | 'Analytics' | 'Integrações' | 'Públicos' | 'Importar' | 'Oportunidades' | 'Comentador' | 'YouTube' | 'Pinterest' | 'Email marketing' | 'WhatsApp X1' | 'Robô por cidades' | 'Relatórios IA' | 'Posts' | 'Gerador de link' | 'Tutorial';
+type Section = 'Visão geral' | 'Produtos' | 'Campanhas' | 'Grupos e oportunidades' | 'Grupos mapeados' | 'Inteligência de mercado' | 'Radar de audiência' | 'Central de tráfego' | 'Estúdio criativo' | 'CRM e vendas' | 'Funis e páginas' | 'Automações' | 'Analytics' | 'Integrações' | 'Públicos' | 'Importar' | 'Oportunidades' | 'Comentador' | 'YouTube' | 'Pinterest' | 'Email marketing' | 'WhatsApp X1' | 'Robô por cidades' | 'Relatórios IA' | 'Robô de distribuição' | 'Posts' | 'Gerador de link' | 'Tutorial';
 type Product = {
   id: string;
   name: string;
@@ -73,6 +74,7 @@ const sections: { label: Section; icon: typeof LayoutDashboard; group: string }[
   { label: 'CRM e vendas', icon: ContactRound, group: 'CRESCIMENTO' },
   { label: 'Funis e páginas', icon: Link2, group: 'CRESCIMENTO' },
   { label: 'Automações', icon: Bot, group: 'INTELIGÊNCIA' },
+  { label: 'Robô de distribuição', icon: Activity, group: 'INTELIGÊNCIA' }, 
   { label: 'Analytics', icon: BarChart3, group: 'INTELIGÊNCIA' },
   { label: 'Gerador de link', icon: Link2, group: 'FERRAMENTAS' },
   { label: 'Tutorial', icon: BookOpen, group: 'FERRAMENTAS' },
@@ -319,7 +321,7 @@ function App() {
       <main className="main-area">
         <header className="topbar"><div className="topbar-left"><button className="icon-button menu-toggle" onClick={() => setMobileOpen(true)}><Menu /></button><div className="breadcrumb">AutoViral AI <span>/</span> <strong>{active}</strong></div></div><div className="topbar-actions"><button className="icon-button" title="Alternar tema claro/escuro" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? <Sun size={17}/> : <Moon size={17}/>}</button><div className="search-box"><Search size={16} /><input placeholder="Buscar recursos..." /><kbd>⌘ K</kbd></div><button className="icon-button notification-button"><Bell size={18} /><i /></button><div className="top-avatar">M</div></div></header>
         <div className="page-content">
-          {active === 'Públicos' ? <AudiencesPage workspaceId={workspaceId} /> : active === 'Integrações' ? <IntegrationsPage workspaceId={workspaceId} /> : active === 'Analytics' ? <AnalyticsPage workspaceId={workspaceId} /> : active === 'Posts' ? <PostsPage workspaceId={workspaceId} /> : active === 'CRM e vendas' ? <CRMPage workspaceId={workspaceId} /> : active === 'Oportunidades' ? <OpportunitiesPage workspaceId={workspaceId} /> : ['Estúdio criativo','Inteligência de mercado','Radar de audiência','Central de tráfego','Automações','Funis e páginas','Comentador','YouTube','Pinterest','Email marketing','WhatsApp X1','Robô por cidades','Relatórios IA','Importar'].includes(active) ? <GrowthToolsPage active={active} workspaceId={workspaceId} /> : active === 'Gerador de link' ? <CampaignsPage workspaceId={workspaceId} /> : active !== 'Visão geral' && active !== 'Produtos' && active !== 'Campanhas' && active !== 'Grupos e oportunidades' && active !== 'Grupos mapeados' ? (
+          {active === 'Robô de distribuição' ? <DistributionAgentPage workspaceId={workspaceId} /> : active === 'Públicos' ? <AudiencesPage workspaceId={workspaceId} /> : active === 'Integrações' ? <IntegrationsPage workspaceId={workspaceId} /> : active === 'Analytics' ? <AnalyticsPage workspaceId={workspaceId} /> : active === 'Posts' ? <PostsPage workspaceId={workspaceId} /> : active === 'CRM e vendas' ? <CRMPage workspaceId={workspaceId} /> : active === 'Oportunidades' ? <OpportunitiesPage workspaceId={workspaceId} /> : ['Estúdio criativo','Inteligência de mercado','Radar de audiência','Central de tráfego','Automações','Funis e páginas','Comentador','YouTube','Pinterest','Email marketing','WhatsApp X1','Robô por cidades','Relatórios IA','Importar'].includes(active) ? <GrowthToolsPage active={active} workspaceId={workspaceId} /> : active === 'Gerador de link' ? <CampaignsPage workspaceId={workspaceId} /> : active !== 'Visão geral' && active !== 'Produtos' && active !== 'Campanhas' && active !== 'Grupos e oportunidades' && active !== 'Grupos mapeados' ? (
             <WorkspaceSection active={active} onNavigate={setActive} />
           ) : active === 'Produtos' ? (
             <ProductsPage
