@@ -42,35 +42,32 @@ The compatibility adapter keeps the existing module query interface while module
 6. Keep product images on public HTTPS URLs while using Spark; Firebase Storage uploads are not enabled in this cost-first setup.
 7. Verify that any feature requiring a server-side integration reports a clear unavailable status until its secure Worker endpoint is deployed.
 
-## Meta Ads — estado real da migração
+## Meta Ads — Worker Firebase-compatible implementado, publicação pendente
 
-A interface antiga contém telas e funções Edge para OAuth, consulta de contas/campanhas/insights e ações de pausar/ativar/excluir campanhas. Essas funções estão em `supabase/functions/av-meta-oauth-start`, `supabase/functions/av-meta-oauth-callback` e `supabase/functions/av-meta-ads`. Elas dependem de tabelas, sessão, secrets e permissões do Supabase legado (`av_meta_connections`, `av_meta_oauth_states`, `av_workspace_members`).
+A nova integração server-side está em `workers/meta-api`. O frontend usa `src/lib/metaApi.ts` para enviar o Firebase ID token e chamar o Worker, sem expor credenciais Meta no navegador.
 
-**Essas funções NÃO estão integradas ao Firebase Data Core.** O adapter Firebase não implementa `functions.invoke`; portanto, não se deve apresentar a conexão Meta como ativa nem tentar enviar operações reais a partir desta versão. A interface foi ajustada para identificar a integração como pendente e evitar iniciar um fluxo incompatível.
+O Worker implementa:
+- Verificação criptográfica de Firebase ID tokens (issuer, audience, expiração e assinatura RS256).
+- OAuth Meta com state aleatório, uso único e validade de 10 minutos.
+- Troca do authorization code por token Meta e tentativa de troca por token de longa duração.
+- Criptografia AES-GCM de tokens antes de armazenar no Cloudflare KV.
+- Consulta de contas de anúncios e campanhas.
+- Pausar/ativar campanhas após conferir que a conta e a campanha pertencem uma à outra; leitura posterior confirma o estado.
+- Registro de auditoria e CORS limitado ao domínio do AutoViral.
+- Exclusão de campanhas não é exposta pela API.
 
-### Trabalho necessário para ativar Meta Ads de verdade
+**Ainda não está operacional em produção.** O Worker precisa ser criado/publicado separadamente e receber KV + secrets; o frontend precisa receber `VITE_META_API_URL` no build do GitHub Pages. A aplicação Meta precisa ter a callback URI exata cadastrada. O Worker não substitui a análise/aprovação de permissões pela Meta.
 
-1. Implementar um backend seguro (Cloudflare Worker ou serviço equivalente) para OAuth callback e chamadas à Meta Marketing API. Não colocar App Secret nem tokens no frontend.
-2. Validar o Firebase ID token no backend e derivar o UID do token; nunca confiar em `workspace_id` enviado pelo navegador sem verificar associação e papel do usuário.
-3. Guardar tokens Meta criptografados em armazenamento server-side com chave de criptografia em secret; implementar rotação, revogação e exclusão de conexão.
-4. Implementar e validar OAuth state de uso único, redirect URI exata, troca por token de longa duração quando elegível e tratamento de expiração/reautorização.
-5. Consultar contas de anúncios autorizadas e validar que cada conta/campanha pertence ao Business/usuário conectado.
-6. Implementar consultas paginadas para campanhas, conjuntos, anúncios e Insights; tratar rate limits, erros e versionamento da Graph API.
-7. Implementar operações de escrita com confirmação explícita, limites de orçamento e leitura posterior para verificar o estado efetivo. Exclusão deve permanecer desabilitada até haver confirmação específica.
-8. Criar trilha de auditoria por usuário, workspace, conta, ação, payload permitido, resposta e timestamp; nunca registrar access tokens.
-9. Testar com conta de anúncios de desenvolvimento e campanhas de teste antes de solicitar permissões avançadas/App Review na Meta.
-10. Migrar/remover as dependências Supabase das funções antigas somente depois de equivalência funcional e testes; preservar o projeto e os dados legados.
+### Configuração manual mínima para ativação
 
-### Configuração externa ainda necessária
+1. Criar um KV namespace Cloudflare e substituir o placeholder `REPLACE_WITH_KV_NAMESPACE_ID` em `workers/meta-api/wrangler.toml`.
+2. Criar um Worker separado chamado `autoviral-meta-api`, apontando para a pasta `workers/meta-api`; não sobrescrever o Worker legado `auto-viral`.
+3. Configurar como Worker Secrets: `META_APP_SECRET` e `TOKEN_ENCRYPTION_KEY` (64 caracteres hexadecimais). O App ID e callback URL já estão preenchidos no `wrangler.toml`, mas devem ser conferidos no painel Meta/Cloudflare.
+4. Definir a variável de repositório GitHub Actions `VITE_META_API_URL` com a origem HTTPS do Worker publicado e reconstruir GitHub Pages.
+5. Adicionar `https://autoviral-meta-api.marcellospropaganda.workers.dev/meta/oauth/callback` às Valid OAuth Redirect URIs do app Meta, preservando as URLs Supabase antigas da outra plataforma.
+6. Testar primeiro com um usuário que tenha papel no app Meta e uma conta de anúncios de teste. Solicitar Advanced Access/App Review e Business Verification quando a Meta exigir.
 
-- Meta App ID e Meta App Secret criados no Meta for Developers.
-- Produto Facebook Login/OAuth e Marketing API configurados no app Meta.
-- Redirect URI do backend cadastrada exatamente no painel Meta.
-- Permissões aprovadas/disponíveis para o nível de acesso necessário (incluindo `ads_read` e, para escrita, `ads_management`; acesso avançado pode exigir App Review e Business Verification).
-- Domínio e política de privacidade/termos publicados conforme exigências da Meta.
-- Secrets e bindings do backend configurados no provedor de hospedagem.
-
-Não inserir esses segredos no GitHub, no código React ou em mensagens. Sem App ID/Secret, backend publicado e permissões Meta válidas, a conexão real não pode ser concluída apenas por uma alteração no frontend.
+O Worker ainda precisa passar pelo CI de tipo e por teste real de OAuth/API. Não inserir App Secret, chave AES, tokens, service-account JSON ou credenciais privadas no GitHub, no frontend ou no chat.
 
 ## Data safety
 
