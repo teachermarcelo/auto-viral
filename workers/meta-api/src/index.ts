@@ -85,7 +85,9 @@ async function decryptToken(record: StoredConnection, env: Env) {
 async function graph(env: Env, path: string, accessToken: string, init: RequestInit = {}) {
   const url = new URL(`https://graph.facebook.com/${env.META_GRAPH_VERSION}/${path.replace(/^\//, "")}`);
   url.searchParams.set("access_token", accessToken);
-  const proofKey = await crypto.subtle.importKey("raw", encoder.encode(env.META_APP_SECRET), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);\n  const proof = new Uint8Array(await crypto.subtle.sign("HMAC", proofKey, encoder.encode(accessToken)));\n  url.searchParams.set("appsecret_proof", Array.from(proof, byte => byte.toString(16).padStart(2, "0")).join(""));\n  const controller = new AbortController();
+  const proofKey = await crypto.subtle.importKey("raw", encoder.encode(env.META_APP_SECRET), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const proof = new Uint8Array(await crypto.subtle.sign("HMAC", proofKey, encoder.encode(accessToken)));
+  url.searchParams.set("appsecret_proof", Array.from(proof, byte => byte.toString(16).padStart(2, "0")).join(""));\n  const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), GRAPH_TIMEOUT_MS);
   try {
     const response = await fetch(url, { ...init, signal: controller.signal, headers: { "content-type": init.body instanceof URLSearchParams ? "application/x-www-form-urlencoded" : "application/json", ...(init.headers || {}) } });
