@@ -66,12 +66,12 @@ async function readFirebaseIdentity(request: Request, env: Env): Promise<Firebas
   if (!jwk) throw new Error("firebase_signing_key_not_found");
   const publicKey = await crypto.subtle.importKey("jwk", jwk, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["verify"]);
   const signingInput = encoder.encode(parts[0] + "." + parts[1]);
-  const valid = await crypto.subtle.verify("RSASSA-PKCS1-v1_5", publicKey, base64UrlDecode(parts[2]), signingInput);
+  const valid = await crypto.subtle.verify("RSASSA-PKCS1-v1_5", publicKey, base64UrlDecode(parts[2]).buffer as ArrayBuffer, signingInput.buffer as ArrayBuffer);
   if (!valid) throw new Error("invalid_firebase_signature");
   return { uid: claims.sub, email: claims.email };
 }
 async function encryptionKey(env: Env) {
-  return crypto.subtle.importKey("raw", hexBytes(env.TOKEN_ENCRYPTION_KEY), "AES-GCM", false, ["encrypt", "decrypt"]);
+  return crypto.subtle.importKey("raw", hexBytes(env.TOKEN_ENCRYPTION_KEY).buffer as ArrayBuffer, "AES-GCM", false, ["encrypt", "decrypt"]);
 }
 async function encryptToken(token: string, env: Env) {
   const iv = crypto.getRandomValues(new Uint8Array(12));
@@ -79,7 +79,7 @@ async function encryptToken(token: string, env: Env) {
   return { ciphertext: base64UrlEncode(new Uint8Array(encrypted)), iv: base64UrlEncode(iv) };
 }
 async function decryptToken(record: StoredConnection, env: Env) {
-  const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: base64UrlDecode(record.iv) }, await encryptionKey(env), base64UrlDecode(record.ciphertext));
+  const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: base64UrlDecode(record.iv).buffer as ArrayBuffer }, await encryptionKey(env), base64UrlDecode(record.ciphertext).buffer as ArrayBuffer);
   return decoder.decode(plain);
 }
 async function graph(env: Env, path: string, accessToken: string, init: RequestInit = {}) {
@@ -87,7 +87,8 @@ async function graph(env: Env, path: string, accessToken: string, init: RequestI
   url.searchParams.set("access_token", accessToken);
   const proofKey = await crypto.subtle.importKey("raw", encoder.encode(env.META_APP_SECRET), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   const proof = new Uint8Array(await crypto.subtle.sign("HMAC", proofKey, encoder.encode(accessToken)));
-  url.searchParams.set("appsecret_proof", Array.from(proof, byte => byte.toString(16).padStart(2, "0")).join(""));\n  const controller = new AbortController();
+  url.searchParams.set("appsecret_proof", Array.from(proof, byte => byte.toString(16).padStart(2, "0")).join(""));
+  const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), GRAPH_TIMEOUT_MS);
   try {
     const response = await fetch(url, { ...init, signal: controller.signal, headers: { "content-type": init.body instanceof URLSearchParams ? "application/x-www-form-urlencoded" : "application/json", ...(init.headers || {}) } });
