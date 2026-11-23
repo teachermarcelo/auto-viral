@@ -35,7 +35,10 @@ service cloud.firestore {
       // All operational records are workspace-scoped. Membership must be
       // provisioned by the workspace owner; clients cannot self-enroll.
       match /{collection}/{document=**} {
-        allow read, create, update, delete: if isOwner(workspaceId) || isMember(workspaceId);
+        // Membership is managed only by the workspace owner. Excluding this
+        // path here is essential because overlapping Firestore matches are OR-ed.
+        allow read, create, update, delete: if collection != 'members'
+          && (isOwner(workspaceId) || isMember(workspaceId));
       }
     }
 
