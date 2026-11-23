@@ -1,6 +1,6 @@
-# AutoViral AI — Mapeador + Robot Assistido (0.4.4)
+# AutoViral AI — Mapeador + Robot Assistido (0.4.6)
 
-Extensão Chrome Manifest V3 para mapear links de grupos públicos que aparecem nos resultados carregados pelo próprio usuário no Facebook e sincronizá-los com a tabela `av_communities` do workspace conectado.
+Extensão Chrome Manifest V3 para mapear links de grupos públicos que aparecem nos resultados carregados pelo próprio usuário no Facebook e sincronizá-los com `workspaces/{uid}/communities` no Cloud Firestore.
 
 ## Instalação / atualização
 
