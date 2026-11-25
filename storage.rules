@@ -1,0 +1,19 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /workspaces/{workspaceId}/products/{fileName} {
+      function signedIn() {
+        return request.auth != null;
+      }
+      function isWorkspaceOwner() {
+        return signedIn()
+          && firestore.get(/databases/(default)/documents/workspaces/$(workspaceId)).data.ownerUid == request.auth.uid;
+      }
+      allow read: if isWorkspaceOwner();
+      allow create, update: if isWorkspaceOwner()
+        && request.resource.size <= 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/(jpeg|png|webp)');
+      allow delete: if isWorkspaceOwner();
+    }
+  }
+}

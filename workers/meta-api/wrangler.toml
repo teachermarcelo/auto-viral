@@ -1,0 +1,16 @@
+name = "autoviral-meta-api"
+main = "src/index.ts"
+compatibility_date = "2026-11-23"
+
+# Configure META_CONNECTIONS as a KV namespace in the Cloudflare dashboard.
+# Set secrets through Wrangler/Cloudflare dashboard; never commit their values.
+[[kv_namespaces]]
+binding = "META_CONNECTIONS"
+id = "a7ef821566564e5b8f57e84ba1b9da3b"
+
+[vars]
+APP_ORIGIN = "https://teachermarcelo.github.io"
+FIREBASE_PROJECT_ID = "autoviral-data-core"
+META_GRAPH_VERSION = "v24.0"
+META_APP_ID = "324533221899948"
+OAUTH_REDIRECT_URI = "https://autoviral-meta-api.marcellospropaganda.workers.dev/meta/oauth/callback"

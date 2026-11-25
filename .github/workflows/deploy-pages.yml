@@ -1,6 +1,8 @@
 name: Deploy AutoViral AI to GitHub Pages
 
 on:
+  # Production Pages is deployed only from the stable branch. Feature branches
+  # are validated by CI but must not request the protected github-pages environment.
   push:
     branches:
       - feat/phase-1-foundation
@@ -28,10 +30,9 @@ jobs:
       - name: Install dependencies
         run: npm install
       - name: Build application
-        run: npm run build
         env:
-          VITE_SUPABASE_URL: https://nuyzvpkvawixidotuuio.supabase.co
-          VITE_SUPABASE_ANON_KEY: sb_publishable_Xe8zdn_sbokiGy1aIvu-VQ_jGxV2qWS
+          VITE_META_API_URL: ${{ vars.VITE_META_API_URL }}
+        run: npm run build
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
       - name: Upload Pages artifact
@@ -40,6 +41,7 @@ jobs:
           path: ./dist
 
   deploy:
+    if: github.ref == 'refs/heads/feat/phase-1-foundation'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

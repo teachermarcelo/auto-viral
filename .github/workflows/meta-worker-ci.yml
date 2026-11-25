@@ -1,0 +1,32 @@
+name: AutoViral Meta Worker CI
+
+on:
+  push:
+    branches: [feat/autoviral-data-core]
+    paths:
+      - "workers/meta-api/**"
+      - ".github/workflows/meta-worker-ci.yml"
+  pull_request:
+    paths:
+      - "workers/meta-api/**"
+      - ".github/workflows/meta-worker-ci.yml"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: workers/meta-api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: workers/meta-api/package.json
+      - name: Install dependencies
+        run: npm install
+      - name: TypeScript validation
+        run: npm run typecheck
+      - name: Validate Cloudflare deployment configuration
+        run: npx wrangler deploy --dry-run
